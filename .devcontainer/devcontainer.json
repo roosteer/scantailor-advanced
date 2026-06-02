@@ -1,0 +1,19 @@
+{
+    "name": "ScanTailor Advanced",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools-extension-pack",
+                "ms-vscode.cmake-tools"
+            ]
+        }
+    },
+    "containerEnv": {
+        "QT_QPA_PLATFORM": "offscreen"
+    },
+    "postCreateCommand": "cmake -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=TRUE && cmake --build build -j$(nproc)",
+    "remoteUser": "root"
+}

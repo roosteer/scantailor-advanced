@@ -1,12 +1,14 @@
 # Stage 1 — build
-FROM fedora:latest AS builder
+FROM debian:bookworm-slim AS builder
 
-RUN dnf install -y --setopt=install_weak_deps=False \
-    cmake gcc-c++ make \
-    qt5-qtbase-devel qt5-qtsvg-devel qt5-qttools-devel \
-    boost-devel boost-test \
-    libjpeg-turbo-devel libpng-devel libtiff-devel zlib-devel \
- && dnf clean all
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake build-essential \
+    qtbase5-dev libqt5svg5-dev qttools5-dev libqt5opengl5-dev \
+    libboost-dev \
+    libjpeg-dev libpng-dev libtiff-dev zlib1g-dev \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY . .
@@ -17,12 +19,15 @@ RUN mkdir build && cd build \
  && strip scantailor-advanced-cli
 
 # Stage 2 — runtime
-FROM fedora:latest
+FROM debian:bookworm-slim
 
-RUN dnf install -y --setopt=install_weak_deps=False \
-    qt5-qtbase qt5-qtbase-gui qt5-qtsvg \
-    libjpeg-turbo libpng libtiff zlib \
- && dnf clean all
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libqt5core5a libqt5gui5 libqt5widgets5 libqt5xml5 libqt5network5 libqt5opengl5 \
+    libqt5svg5 \
+    libjpeg62-turbo libpng16-16 libtiff6 zlib1g \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /src/build/scantailor-advanced-cli /usr/local/bin/
 ENV QT_QPA_PLATFORM=offscreen
