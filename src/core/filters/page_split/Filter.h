@@ -65,6 +65,7 @@ class Filter : public AbstractFilter {
   std::shared_ptr<CacheDrivenTask> createCacheDrivenTask(std::shared_ptr<deskew::CacheDrivenTask> nextTask);
 
   OptionsWidget* optionsWidget();
+  std::shared_ptr<Settings> getSettings() const { return m_settings; }
 
   void pageOrientationUpdate(const ImageId& imageId, const OrthogonalRotation& orientation);
 

@@ -1,0 +1,7 @@
+build/
+build-*/
+docker/
+.git/
+*.deb
+*.AppImage
+*.exe

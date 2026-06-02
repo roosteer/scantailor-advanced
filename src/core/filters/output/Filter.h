@@ -59,6 +59,7 @@ class Filter : public AbstractFilter {
   std::shared_ptr<CacheDrivenTask> createCacheDrivenTask(const OutputFileNameGenerator& outFileNameGen);
 
   OptionsWidget* optionsWidget();
+  std::shared_ptr<Settings> getSettings() const { return m_settings; }
 
   std::vector<PageOrderOption> pageOrderOptions() const override;
 

@@ -60,6 +60,7 @@ class Filter : public AbstractFilter {
   std::shared_ptr<CacheDrivenTask> createCacheDrivenTask(std::shared_ptr<select_content::CacheDrivenTask> nextTask);
 
   OptionsWidget* optionsWidget();
+  std::shared_ptr<Settings> getSettings() const { return m_settings; }
 
   std::vector<PageOrderOption> pageOrderOptions() const override;
 

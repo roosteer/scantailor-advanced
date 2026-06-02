@@ -67,6 +67,7 @@ class Filter : public AbstractFilter {
   std::shared_ptr<CacheDrivenTask> createCacheDrivenTask(std::shared_ptr<page_layout::CacheDrivenTask> nextTask);
 
   OptionsWidget* optionsWidget();
+  std::shared_ptr<Settings> getSettings() const { return m_settings; }
 
  private:
   void writePageSettings(QDomDocument& doc, QDomElement& filterEl, const PageId& pageId, int numericId) const;

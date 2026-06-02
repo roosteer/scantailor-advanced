@@ -64,6 +64,8 @@ class Filter : public AbstractFilter {
 
   OptionsWidget* optionsWidget();
 
+  std::shared_ptr<Settings> getSettings() const { return m_settings; }
+
  private:
   void writeParams(QDomDocument& doc, QDomElement& filterEl, const ImageId& imageId, int numericId) const;
 
