@@ -1,7 +1,7 @@
 // Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
-#include <QCoreApplication>
+#include <QGuiApplication>
 #include <QDir>
 #include <QDomDocument>
 #include <QFile>
@@ -151,10 +151,10 @@ static ExitCode loadProject(const QString& projectFilePath,
 }
 
 int main(int argc, char* argv[]) {
-  QCoreApplication app(argc, argv);
-  QCoreApplication::setApplicationName("scantailor-advanced-cli");
+  QGuiApplication app(argc, argv);
+  QGuiApplication::setApplicationName("scantailor-advanced-cli");
 
-  const QStringList args = QCoreApplication::arguments();
+  const QStringList args = QGuiApplication::arguments();
   // args[0] is the program name; skip it.
   const QStringList cliArgs = args.mid(1);
 

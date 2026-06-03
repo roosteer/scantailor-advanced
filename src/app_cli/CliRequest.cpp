@@ -15,7 +15,7 @@ void printHelp() {
   QTextStream out(stdout);
   out << "Usage: scantailor-advanced-cli [flags] <images...> <output-dir>\n";
   out << "       scantailor-advanced-cli [flags] <project.ScanTailor>\n";
-  out << "\n";
+  out << "       scantailor-advanced-cli [flags] <project.ScanTailor> <output-dir>\n";
   out << "Process scanned images through the ScanTailor Advanced pipeline.\n";
   out << "\n";
   out << "Filter indices (for --start-filter / --end-filter):\n";
@@ -65,6 +65,7 @@ void printHelp() {
   out << "  scantailor-advanced-cli scan.png /tmp/out\n";
   out << "  scantailor-advanced-cli --output-dpi=300 --color-mode=bw scan1.png scan2.png /tmp/out\n";
   out << "  scantailor-advanced-cli --output=json project.ScanTailor\n";
+  out << "  scantailor-advanced-cli --output-dpi=600 project.ScanTailor /tmp/out\n";
 }
 
 void printVersion() {
@@ -292,19 +293,25 @@ ExitCode CliRequest::parse(const QStringList& args, CliRequest& out, QString& er
     return ExitCode::SUCCESS;
   }
 
-  // Determine if this is a project file or image list.
   if (positionalArgs.isEmpty()) {
     errorMsg = QString("No input files specified. Use --help for usage.");
     return ExitCode::INVALID_INPUT;
   }
-
-  // Check if the last positional arg looks like a directory path or project file.
-  // Heuristic: if exactly 1 arg and it ends with .ScanTailor, treat as project file.
-  // If exactly 1 arg that does NOT end with .ScanTailor, it's ambiguous — treat as output dir
-  //   with no images, which is an error.
-  // If N>=2 args, the last is output dir, the rest are images.
+  // Determine if this is a project file or image list.
+  // Support both:
+  //   scantailor-advanced-cli [flags] <project.ScanTailor> [<output-dir>]
+  //   scantailor-advanced-cli [flags] <images...> <output-dir>
   if (positionalArgs.size() == 1 && positionalArgs[0].endsWith(".ScanTailor", Qt::CaseInsensitive)) {
+    // Project file only — output directory from project.
     out.projectFile = positionalArgs[0];
+  } else if (positionalArgs.size() >= 2 && positionalArgs[0].endsWith(".ScanTailor", Qt::CaseInsensitive)) {
+    // Project file + explicit output directory override.
+    if (positionalArgs.size() > 2) {
+      errorMsg = QString("Unexpected arguments after output directory in project mode: %1").arg(positionalArgs[2]);
+      return ExitCode::INVALID_INPUT;
+    }
+    out.projectFile = positionalArgs[0];
+    out.outputDir = positionalArgs[1];
   } else if (positionalArgs.size() >= 2) {
     out.outputDir = positionalArgs.takeLast();
     out.images = positionalArgs;
