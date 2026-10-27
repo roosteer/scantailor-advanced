@@ -81,6 +81,18 @@ void TestCliQt::parsesValueFlags() {
   QCOMPARE(request.deskewAngle.value_or(0.0), 1.5);
 }
 
+void TestCliQt::acceptsLegacyColorModeAliases() {
+  const cli::ParseResult bw = cli::parseCommandLine({"--color-mode=black_and_white", "a.png", "/o"});
+  QVERIFY(bw.error.ok());
+  QVERIFY(bw.request.colorMode.has_value());
+  QCOMPARE(static_cast<int>(*bw.request.colorMode), static_cast<int>(output::BLACK_AND_WHITE));
+
+  const cli::ParseResult color = cli::parseCommandLine({"--color-mode=color_grayscale", "a.png", "/o"});
+  QVERIFY(color.error.ok());
+  QVERIFY(color.request.colorMode.has_value());
+  QCOMPARE(static_cast<int>(*color.request.colorMode), static_cast<int>(output::COLOR_GRAYSCALE));
+}
+
 void TestCliQt::rejectsUnknownFlag() {
   const cli::ParseResult result = cli::parseCommandLine({"--foo=bar"});
   QVERIFY(!result.error.ok());

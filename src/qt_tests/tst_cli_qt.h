@@ -11,6 +11,7 @@ class TestCliQt : public QObject {
  private slots:
   void parsesDefaults();
   void parsesValueFlags();
+  void acceptsLegacyColorModeAliases();
   void rejectsUnknownFlag();
   void rejectsMalformedValues();
   void rejectsConflictingOptions();

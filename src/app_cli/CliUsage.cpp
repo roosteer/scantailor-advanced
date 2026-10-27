@@ -203,9 +203,10 @@ ExitCode setOutputDpi(const QString& value, CliRequest& out, QString& errorMessa
 }
 
 ExitCode setColorMode(const QString& value, CliRequest& out, QString& errorMessage) {
-  if (value == "bw") {
+  // The long spellings predate the short ones and scripts still pass them.
+  if (value == "bw" || value == "black_and_white") {
     out.colorMode = output::BLACK_AND_WHITE;
-  } else if (value == "color") {
+  } else if (value == "color" || value == "color_grayscale") {
     out.colorMode = output::COLOR_GRAYSCALE;
   } else if (value == "mixed") {
     out.colorMode = output::MIXED;
