@@ -230,9 +230,8 @@ BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog&
   // range.start cannot shorten the chain: the CLI always begins at LoadFileTask
   // and has no cached stage inputs to resume from. It only limits which filters
   // receive the request's overrides.
-  const StageChain chain(m_document->stages(),
-                         StageChain::Deps{m_thumbnailCache, m_document->pages(),
-                                          m_document->outputFileNameGenerator(), true, false});
+  const StageChain chain(m_document->stages(), StageChain::Deps{m_thumbnailCache, m_document->pages(),
+                                                                m_document->outputFileNameGenerator(), true, false});
 
   BatchReport report;
   report.pages.reserve(m_pageSequence.numPages());

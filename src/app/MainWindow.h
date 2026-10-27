@@ -219,8 +219,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   std::shared_ptr<AbstractCommand<void>> relinkingDialogRequester() override;
 
-  void switchToProject(std::shared_ptr<ProjectDocument> document,
-                       const QString& projectFilePath = QString());
+  void switchToProject(std::shared_ptr<ProjectDocument> document, const QString& projectFilePath = QString());
 
   void updateThumbViewMinWidth();
 

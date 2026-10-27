@@ -20,9 +20,9 @@
 #include <PageView.h>
 #include <RelinkablePath.h>
 #include <StageSequence.h>
-#include <boost/test/unit_test.hpp>
 #include <filters/fix_orientation/Filter.h>
 #include <filters/fix_orientation/Settings.h>
+#include <boost/test/unit_test.hpp>
 
 #include <QDir>
 #include <QDomDocument>
@@ -158,8 +158,7 @@ BOOST_AUTO_TEST_CASE(duplicate_basenames_keep_their_labels) {
 
   const PageSequence sequence = pages->toPageSequence(PAGE_VIEW);
   BOOST_REQUIRE_EQUAL(sequence.numPages(), 2);
-  BOOST_CHECK_EQUAL(document->outputFileNameGenerator().fileNameFor(sequence.pageAt(0).id()).toStdString(),
-                    "page.tif");
+  BOOST_CHECK_EQUAL(document->outputFileNameGenerator().fileNameFor(sequence.pageAt(0).id()).toStdString(), "page.tif");
   BOOST_CHECK_EQUAL(document->outputFileNameGenerator().fileNameFor(sequence.pageAt(1).id()).toStdString(),
                     "page(1).tif");
 
@@ -173,18 +172,18 @@ BOOST_AUTO_TEST_CASE(duplicate_basenames_keep_their_labels) {
   BOOST_CHECK_EQUAL(reopenedNames.at(1).toStdString(), "page(1).tif");
 
   // A third input joins the same name group.
-  const std::vector<PageInfo> inserted = document->insertImage(
-      imageInfoFor(dir.filePath("c/page.png")), AFTER, sequence.pageAt(0).id().imageId(), PAGE_VIEW);
+  const std::vector<PageInfo> inserted = document->insertImage(imageInfoFor(dir.filePath("c/page.png")), AFTER,
+                                                               sequence.pageAt(0).id().imageId(), PAGE_VIEW);
   BOOST_REQUIRE_EQUAL(inserted.size(), 1);
   BOOST_CHECK_EQUAL(document->outputFileNameGenerator().fileNameFor(inserted[0].id()).toStdString(), "page(2).tif");
 
   // Inserting next to an image the project does not have inserts nothing and takes no label.
-  const std::vector<PageInfo> rejected = document->insertImage(
-      imageInfoFor(dir.filePath("d/page.png")), AFTER, ImageId(dir.filePath("absent/page.png")), PAGE_VIEW);
+  const std::vector<PageInfo> rejected = document->insertImage(imageInfoFor(dir.filePath("d/page.png")), AFTER,
+                                                               ImageId(dir.filePath("absent/page.png")), PAGE_VIEW);
   BOOST_CHECK(rejected.empty());
 
-  const std::vector<PageInfo> afterRejected = document->insertImage(
-      imageInfoFor(dir.filePath("e/page.png")), AFTER, sequence.pageAt(1).id().imageId(), PAGE_VIEW);
+  const std::vector<PageInfo> afterRejected = document->insertImage(imageInfoFor(dir.filePath("e/page.png")), AFTER,
+                                                                    sequence.pageAt(1).id().imageId(), PAGE_VIEW);
   BOOST_REQUIRE_EQUAL(afterRejected.size(), 1);
   BOOST_CHECK_EQUAL(document->outputFileNameGenerator().fileNameFor(afterRejected[0].id()).toStdString(),
                     "page(3).tif");
@@ -268,8 +267,7 @@ BOOST_AUTO_TEST_CASE(moved_tree_resolves_input_and_output_in_the_new_root) {
                     QDir::cleanPath(movedDir + "/in/page.png").toStdString());
   BOOST_CHECK_EQUAL(QDir::cleanPath(reopened->outputFileNameGenerator().outDir()).toStdString(),
                     QDir::cleanPath(movedDir + "/out").toStdString());
-  BOOST_CHECK_EQUAL(reopened->outputFileNameGenerator().fileNameFor(sequence.pageAt(0).id()).toStdString(),
-                    "page.tif");
+  BOOST_CHECK_EQUAL(reopened->outputFileNameGenerator().fileNameFor(sequence.pageAt(0).id()).toStdString(), "page.tif");
   BOOST_CHECK(QDir(movedDir + "/out").exists());
 }
 
@@ -399,9 +397,9 @@ BOOST_AUTO_TEST_CASE(reading_direction_and_relinking_keep_order_names_and_settin
   BOOST_CHECK_EQUAL(QDir::cleanPath(document->outputFileNameGenerator().outDir()).toStdString(),
                     QDir::cleanPath(movedRoot + "/out").toStdString());
   BOOST_CHECK(pageNames(*document) == rightToLeftNames);
-  BOOST_CHECK(document->stages()->fixOrientationFilter()->getSettings()->getRotationFor(
-                  ImageId(movedRoot + "/a/spread.png"))
-              == quarterTurns(1));
+  BOOST_CHECK(
+      document->stages()->fixOrientationFilter()->getSettings()->getRotationFor(ImageId(movedRoot + "/a/spread.png"))
+      == quarterTurns(1));
 }
 
 /** An empty document, the loaded predicate and the write failure the caller has to handle. */

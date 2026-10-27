@@ -10,8 +10,8 @@
 #include "FileNameDisambiguator.h"
 #include "ImageId.h"
 #include "ImageInfo.h"
-#include "PageSequence.h"
 #include "PageSelectionAccessor.h"
+#include "PageSequence.h"
 #include "ProjectPages.h"
 #include "ProjectReader.h"
 #include "ProjectWriter.h"
@@ -28,8 +28,7 @@ std::shared_ptr<FileNameDisambiguator> newDisambiguator() {
 ProjectDocument::ProjectDocument(const std::shared_ptr<ProjectPages>& pages,
                                  std::shared_ptr<FileNameDisambiguator> disambiguator,
                                  const QString& outputDir)
-    : m_pages(pages),
-      m_outputFileNameGenerator(std::move(disambiguator), outputDir, pages->layoutDirection()) {
+    : m_pages(pages), m_outputFileNameGenerator(std::move(disambiguator), outputDir, pages->layoutDirection()) {
   // IMAGE_VIEW order is the order the editor and the CLI both show, and the order that
   // gives two inputs with equal basenames distinct labels. It has to be decided once.
   for (const PageInfo& page : m_pages->toPageSequence(IMAGE_VIEW)) {

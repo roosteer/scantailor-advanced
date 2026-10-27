@@ -403,7 +403,8 @@ void MainWindow::switchToProject(std::shared_ptr<ProjectDocument> document, cons
 
   m_pageOrientationPropagator = std::make_unique<PageOrientationPropagator>(
       m_document->stages()->pageSplitFilter(),
-      StageChain(m_document->stages(), chainDeps()).cacheDrivenTaskFor(m_document->stages()->fixOrientationFilterIdx()));
+      StageChain(m_document->stages(), chainDeps())
+          .cacheDrivenTaskFor(m_document->stages()->fixOrientationFilterIdx()));
 
   // Thumbnails are stored relative to the output directory,
   // so recreate the thumbnail cache.
@@ -851,8 +852,7 @@ void MainWindow::showRelinkingDialog() {
   dialog->setWindowModality(Qt::WindowModal);
 
   m_document->pages()->listRelinkablePaths(dialog->pathCollector());
-  dialog->pathCollector()(
-      RelinkablePath(m_document->outputFileNameGenerator().outDir(), RelinkablePath::Dir));
+  dialog->pathCollector()(RelinkablePath(m_document->outputFileNameGenerator().outDir(), RelinkablePath::Dir));
 
   connect(dialog, &QDialog::accepted, [this, dialog]() { this->performRelinking(dialog->relinker()); });
 

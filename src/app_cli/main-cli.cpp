@@ -71,8 +71,7 @@ int main(int argc, char* argv[]) {
       return static_cast<int>(error.code);
     }
 
-    const std::optional<FilterRange> range
-        = resolveFilterRange(request, session->document()->stages()->count(), error);
+    const std::optional<FilterRange> range = resolveFilterRange(request, session->document()->stages()->count(), error);
     if (!range) {
       ConsoleLog::writeError(error.message);
       return static_cast<int>(error.code);

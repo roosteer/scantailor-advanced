@@ -17,12 +17,11 @@ namespace project_save {
 
 namespace {
 
-QString translated(const char* text) {
-  return QCoreApplication::translate("MainWindow", text);
-}
+// The literals stay inline in the translate() calls below: lupdate only extracts translations
+// from direct calls, and a helper taking the source text would drop them from the catalog.
 
 QString projectFilter() {
-  return translated("Scan Tailor Projects") + QStringLiteral(" (*.ScanTailor)");
+  return QCoreApplication::translate("MainWindow", "Scan Tailor Projects") + QStringLiteral(" (*.ScanTailor)");
 }
 
 }  // namespace
@@ -32,7 +31,8 @@ bool saveWithFeedback(QWidget* parent, const ProjectDocument& document, const QS
     return true;
   }
 
-  QMessageBox::warning(parent, translated("Error"), translated("Error saving the project file!"));
+  QMessageBox::warning(parent, QCoreApplication::translate("MainWindow", "Error"),
+                       QCoreApplication::translate("MainWindow", "Error saving the project file!"));
   return false;
 }
 
