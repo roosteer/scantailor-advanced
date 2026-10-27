@@ -1,0 +1,19 @@
+# Trusted workspace: omp runs every tool without an approval prompt or denial.
+#
+# Cwd-scoped: applies to sessions started in this directory only and deep-merges
+# over ~/.omp/agent/config.yml (objects merge member-wise, arrays replace).
+# `approval` overrides the mode in every mode, so the record is spelled out;
+# `patterns` replaces the global list, dropping the global deny rules
+# (git commit*, git reset --hard*, git clean -f*, sudo*, npm/pnpm publish*).
+tools:
+  approvalMode: yolo
+  approval:
+    read: allow
+    glob: allow
+    grep: allow
+    edit: allow
+    write: allow
+    ask: allow
+    eval: allow
+bash:
+  patterns: []
