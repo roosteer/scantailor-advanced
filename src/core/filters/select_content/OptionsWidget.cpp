@@ -208,52 +208,19 @@ void OptionsWidget::applySelection(const std::set<PageId>& pages, const bool app
     return;
   }
 
-  const Params params(m_uiData.contentRect(), m_uiData.contentSizeMM(), m_uiData.pageRect(), Dependencies(),
+  const Params params(m_uiData.contentRect(), m_uiData.contentSizeMM(), m_uiData.pageRect(), m_uiData.dependencies(),
                       m_uiData.contentDetectionMode(), m_uiData.pageDetectionMode(),
                       m_uiData.isFineTuningCornersEnabled());
 
-  for (const PageId& pageId : pages) {
-    if (m_pageId == pageId) {
-      continue;
-    }
-
-    Params newParams(params);
-    std::unique_ptr<Params> oldParams = m_settings->getPageParams(pageId);
-    if (oldParams) {
-      if (newParams.pageDetectionMode() == MODE_MANUAL) {
-        if (!applyPageBox) {
-          newParams.setPageRect(oldParams->pageRect());
-        } else {
-          QRectF correctedPageRect = newParams.pageRect();
-          const QRectF sourceImageRect = newParams.dependencies().rotatedPageOutline().boundingRect();
-          const QRectF currentImageRect = oldParams->dependencies().rotatedPageOutline().boundingRect();
-          if (sourceImageRect.isValid() && currentImageRect.isValid()) {
-            correctedPageRect.translate((currentImageRect.width() - sourceImageRect.width()) / 2,
-                                        (currentImageRect.height() - sourceImageRect.height()) / 2);
-            newParams.setPageRect(correctedPageRect);
-          }
-        }
-      }
-      if (newParams.contentDetectionMode() == MODE_MANUAL) {
-        if (!applyContentBox) {
-          newParams.setContentRect(oldParams->contentRect());
-        } else if (!newParams.contentRect().isEmpty()) {
-          QRectF correctedContentRect = newParams.contentRect();
-          const QRectF& sourcePageRect = m_uiData.pageRect();
-          const QRectF& newPageRect = newParams.pageRect();
-          correctedContentRect.translate(newPageRect.x() - sourcePageRect.x(), newPageRect.y() - sourcePageRect.y());
-          newParams.setContentRect(correctedContentRect);
-        }
-      }
-    }
-
-    if (applyContentBox && newParams.contentDetectionMode() == MODE_AUTO) {
-      newParams.setDependencies(
-          Dependencies(QPolygonF(), MODE_DISABLED, newParams.pageDetectionMode(), newParams.isFineTuningEnabled()));
-    }
-
-    m_settings->setPageParams(pageId, newParams);
+  Settings::BoxSelection selection = Settings::BoxSelection::Neither;
+  if (applyContentBox && applyPageBox) {
+    selection = Settings::BoxSelection::Both;
+  } else if (applyContentBox) {
+    selection = Settings::BoxSelection::Content;
+  } else if (applyPageBox) {
+    selection = Settings::BoxSelection::Page;
   }
+  m_settings->copyBoxes(pages, m_pageId, params, selection);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();

@@ -41,6 +41,18 @@ class Settings {
 
   void setDegrees(const std::set<PageId>& pages, const Params& params);
 
+  /** Which of the two independently applied angles a bulk copy touches. */
+  enum class AngleSelection { Neither, Deskew, Oblique, Both };
+
+  /**
+   * \brief Copies the selected angles and modes from \p source onto \p pages.
+   *
+   * An unselected axis keeps the target's own angle and mode, or falls back to
+   * angle zero in automatic mode when the target has no parameters yet. Whenever
+   * at least one axis is selected, the source dependencies replace the target's.
+   */
+  void applyAngles(const std::set<PageId>& pages, const Params& source, AngleSelection selection);
+
   const DeviationProvider<PageId>& deviationProvider() const;
 
   void setAlgoContentBased(bool contentBased);

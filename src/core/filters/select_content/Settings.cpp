@@ -12,6 +12,10 @@
 using namespace core;
 
 namespace select_content {
+namespace {
+constexpr double kUnboundedPageDetectionBoxMm = 100000.0;
+}  // namespace
+
 Settings::Settings() : m_pageDetectionBox(0.0, 0.0), m_pageDetectionTolerance(0.1) {
   m_deviationProvider.setComputeValueByKey([this](const PageId& pageId) -> double {
     auto it(m_pageParams.find(pageId));
@@ -78,6 +82,69 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
 bool Settings::isParamsNull(const PageId& pageId) const {
   QMutexLocker locker(&m_mutex);
   return (m_pageParams.find(pageId) == m_pageParams.end());
+}
+
+void Settings::copyBoxes(const std::set<PageId>& pages,
+                         const PageId& sourcePage,
+                         const Params& source,
+                         const BoxSelection selection) {
+  const bool applyContentBox = (selection == BoxSelection::Content) || (selection == BoxSelection::Both);
+  const bool applyPageBox = (selection == BoxSelection::Page) || (selection == BoxSelection::Both);
+
+  const QMutexLocker locker(&m_mutex);
+  for (const PageId& pageId : pages) {
+    if (pageId == sourcePage) {
+      continue;
+    }
+
+    Params newParams(source);
+    newParams.setDependencies(Dependencies());
+
+    const auto it(m_pageParams.find(pageId));
+    if (it != m_pageParams.end()) {
+      const Params& oldParams = it->second;
+
+      if ((newParams.pageDetectionMode() == MODE_MANUAL) && !applyPageBox) {
+        newParams.setPageRect(oldParams.pageRect());
+      }
+
+      if (newParams.contentDetectionMode() == MODE_MANUAL) {
+        if (!applyContentBox) {
+          newParams.setContentRect(oldParams.contentRect());
+        } else if (!newParams.contentRect().isEmpty()) {
+          QRectF correctedContentRect = newParams.contentRect();
+          const QRectF& sourcePageRect = source.pageRect();
+          const QRectF& newPageRect = newParams.pageRect();
+          correctedContentRect.translate(newPageRect.x() - sourcePageRect.x(), newPageRect.y() - sourcePageRect.y());
+          newParams.setContentRect(correctedContentRect);
+        }
+      }
+    }
+
+    if (applyContentBox && (newParams.contentDetectionMode() == MODE_AUTO)) {
+      newParams.setDependencies(
+          Dependencies(QPolygonF(), MODE_DISABLED, newParams.pageDetectionMode(), newParams.isFineTuningEnabled()));
+    }
+
+    Utils::mapSetValue(m_pageParams, pageId, newParams);
+    m_deviationProvider.addOrUpdate(pageId);
+  }
+}
+
+void Settings::setManualBox(const std::set<PageId>& pages, const QRectF& rect) {
+  const QSizeF sizeMm(rect.width(), rect.height());
+  const Params params(rect, sizeMm, rect, Dependencies(), MODE_MANUAL, MODE_MANUAL, false);
+
+  const QMutexLocker locker(&m_mutex);
+  for (const PageId& pageId : pages) {
+    Utils::mapSetValue(m_pageParams, pageId, params);
+    m_deviationProvider.addOrUpdate(pageId);
+  }
+}
+
+void Settings::useUnboundedPageDetection() {
+  setPageDetectionBox(QSizeF(kUnboundedPageDetectionBoxMm, kUnboundedPageDetectionBoxMm));
+  setPageDetectionTolerance(0.0);
 }
 
 QSizeF Settings::pageDetectionBox() const {

@@ -15,19 +15,17 @@
 namespace deskew {
 namespace {
 
-Params mergeParamsForApply(const std::unique_ptr<Params>& existing,
-                           const OptionsWidget::UiData& cur,
-                           const bool applyDeskew,
-                           const bool applyOblique) {
-  const Dependencies deps(cur.dependencies());
-  if (!existing) {
-    return Params(applyDeskew ? cur.effectiveDeskewAngle() : 0.0, applyOblique ? cur.effectiveObliqueAngle() : 0.0,
-                  deps, applyDeskew ? cur.mode() : MODE_AUTO, applyOblique ? cur.obliqueMode() : MODE_AUTO);
+Settings::AngleSelection angleSelectionFor(const bool applyDeskew, const bool applyOblique) {
+  if (applyDeskew && applyOblique) {
+    return Settings::AngleSelection::Both;
   }
-  return Params(applyDeskew ? cur.effectiveDeskewAngle() : existing->deskewAngle(),
-                applyOblique ? cur.effectiveObliqueAngle() : existing->obliqueAngle(), deps,
-                applyDeskew ? cur.mode() : existing->mode(),
-                applyOblique ? cur.obliqueMode() : existing->obliqueMode());
+  if (applyDeskew) {
+    return Settings::AngleSelection::Deskew;
+  }
+  if (applyOblique) {
+    return Settings::AngleSelection::Oblique;
+  }
+  return Settings::AngleSelection::Neither;
 }
 
 }  // namespace
@@ -74,11 +72,9 @@ void OptionsWidget::appliedTo(const std::set<PageId>& pages, const bool applyDes
     return;
   }
 
-  for (const PageId& pageId : pages) {
-    std::unique_ptr<Params> existing(m_settings->getPageParams(pageId));
-    const Params merged(mergeParamsForApply(existing, m_uiData, applyDeskew, applyOblique));
-    m_settings->setPageParams(pageId, merged);
-  }
+  const Params source(m_uiData.effectiveDeskewAngle(), m_uiData.effectiveObliqueAngle(), m_uiData.dependencies(),
+                      m_uiData.mode(), m_uiData.obliqueMode());
+  m_settings->applyAngles(pages, source, angleSelectionFor(applyDeskew, applyOblique));
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -94,11 +90,9 @@ void OptionsWidget::appliedToAllPages(const std::set<PageId>& pages, const bool 
     return;
   }
 
-  for (const PageId& pageId : pages) {
-    std::unique_ptr<Params> existing(m_settings->getPageParams(pageId));
-    const Params merged(mergeParamsForApply(existing, m_uiData, applyDeskew, applyOblique));
-    m_settings->setPageParams(pageId, merged);
-  }
+  const Params source(m_uiData.effectiveDeskewAngle(), m_uiData.effectiveObliqueAngle(), m_uiData.dependencies(),
+                      m_uiData.mode(), m_uiData.obliqueMode());
+  m_settings->applyAngles(pages, source, angleSelectionFor(applyDeskew, applyOblique));
   emit invalidateAllThumbnails();
 }
 

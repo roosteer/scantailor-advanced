@@ -89,6 +89,30 @@ void Settings::setDegrees(const std::set<PageId>& pages, const Params& params) {
   }
 }
 
+void Settings::applyAngles(const std::set<PageId>& pages, const Params& source, const AngleSelection selection) {
+  if ((selection == AngleSelection::Neither) || pages.empty()) {
+    return;
+  }
+
+  const bool applyDeskew = (selection == AngleSelection::Deskew) || (selection == AngleSelection::Both);
+  const bool applyOblique = (selection == AngleSelection::Oblique) || (selection == AngleSelection::Both);
+
+  const QMutexLocker locker(&m_mutex);
+  for (const PageId& page : pages) {
+    const auto it(m_perPageParams.find(page));
+    Params merged = (it == m_perPageParams.end())
+                        ? Params(applyDeskew ? source.deskewAngle() : 0.0, applyOblique ? source.obliqueAngle() : 0.0,
+                                 source.dependencies(), applyDeskew ? source.mode() : MODE_AUTO,
+                                 applyOblique ? source.obliqueMode() : MODE_AUTO)
+                        : Params(applyDeskew ? source.deskewAngle() : it->second.deskewAngle(),
+                                 applyOblique ? source.obliqueAngle() : it->second.obliqueAngle(),
+                                 source.dependencies(), applyDeskew ? source.mode() : it->second.mode(),
+                                 applyOblique ? source.obliqueMode() : it->second.obliqueMode());
+    Utils::mapSetValue(m_perPageParams, page, merged);
+    m_deviationProvider.addOrUpdate(page);
+  }
+}
+
 bool Settings::isParamsNull(const PageId& pageId) const {
   QMutexLocker locker(&m_mutex);
   return (m_perPageParams.find(pageId) == m_perPageParams.end());

@@ -7,12 +7,14 @@
 #include <DeviationProvider.h>
 
 #include <memory>
+#include <optional>
+#include <set>
 
+#include "Alignment.h"
 #include "Margins.h"
 #include "NonCopyable.h"
+#include "PageId.h"
 
-class PageId;
-class Margins;
 class PageSequence;
 class AbstractRelinker;
 class QSizeF;
@@ -20,7 +22,6 @@ class QRectF;
 
 namespace page_layout {
 class Params;
-class Alignment;
 class Guide;
 
 class Settings {
@@ -161,6 +162,32 @@ class Settings {
   bool isShowingMiddleRectEnabled() const;
 
   void enableShowingMiddleRect(bool state);
+
+  /** Hard margin sides a bulk copy overwrites; a disengaged side keeps the target's value. */
+  struct MarginValues {
+    std::optional<double> left;
+    std::optional<double> top;
+    std::optional<double> right;
+    std::optional<double> bottom;
+  };
+
+  /**
+   * \brief Copies the source's margins onto \p pages.
+   *
+   * The source's automatic-margins flag travels with the copy, so automatic
+   * targets just lose their content size while manual ones receive only the
+   * engaged sides.
+   */
+  void copyMargins(const std::set<PageId>& pages, const PageId& sourcePage, const MarginValues& selectedValues);
+
+  /** Sets all four hard margins, keeping each target's automatic-margins flag. */
+  void overrideMargins(const std::set<PageId>& pages, const Margins& marginsMm);
+
+  /** Copies \p alignment onto every page of \p pages except \p sourcePage. */
+  void copyAlignment(const std::set<PageId>& pages, const PageId& sourcePage, const Alignment& alignment);
+
+  /** Sets \p alignment on every page of \p pages, the source page included. */
+  void applyAlignment(const std::set<PageId>& pages, const Alignment& alignment);
 
  private:
   class Impl;

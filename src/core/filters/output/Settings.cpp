@@ -318,4 +318,136 @@ void Settings::setBlackOnWhite(const PageId& pageId, const bool blackOnWhite) {
     it->second.setBlackOnWhite(blackOnWhite);
   }
 }
+
+void Settings::applyDpi(const std::set<PageId>& pages, const Dpi& dpi) {
+  for (const PageId& pageId : pages) {
+    const Params params(getParams(pageId));
+    if (params.dewarpingOptions().dewarpingMode() == AUTO) {
+      DewarpingOptions opt(params.dewarpingOptions());
+      opt.setDewarpingMode(MANUAL);
+      setDewarpingOptions(pageId, opt);
+    }
+    setDpi(pageId, dpi);
+  }
+}
+
+void Settings::applyColors(const std::set<PageId>& pages,
+                           const ColorParams& colors,
+                           const PictureShapeOptions& pictureShape) {
+  for (const PageId& pageId : pages) {
+    setColorParams(pageId, colors);
+    setPictureShapeOptions(pageId, pictureShape);
+  }
+}
+
+void Settings::applySplitting(const std::set<PageId>& pages, const SplittingOptions& options) {
+  for (const PageId& pageId : pages) {
+    setSplittingOptions(pageId, options);
+  }
+}
+
+void Settings::applyDespeckleLevel(const std::set<PageId>& pages, const double level) {
+  for (const PageId& pageId : pages) {
+    setDespeckleLevel(pageId, level);
+  }
+}
+
+void Settings::applyDewarping(const std::set<PageId>& pages, const DewarpingOptions& options) {
+  for (const PageId& pageId : pages) {
+    setDewarpingOptions(pageId, options);
+  }
+}
+
+void Settings::applyDepthPerception(const std::set<PageId>& pages, const DepthPerception& depth) {
+  for (const PageId& pageId : pages) {
+    setDepthPerception(pageId, depth);
+  }
+}
+
+void Settings::copyProcessing(const std::set<PageId>& pages, const PageId& sourcePage) {
+  if (pages.empty()) {
+    return;
+  }
+
+  const bool blackOnWhite = getParams(sourcePage).isBlackOnWhite();
+  for (const PageId& pageId : pages) {
+    setBlackOnWhite(pageId, blackOnWhite);
+
+    OutputProcessingParams processingParams = getOutputProcessingParams(pageId);
+    processingParams.setBlackOnWhiteSetManually(true);
+    setOutputProcessingParams(pageId, processingParams);
+  }
+}
+
+bool Settings::Overrides::empty() const {
+  return !dpi && !colorMode && !thresholdAdjustment && !despeckleLevel && !dewarpingMode && !depthPerception
+         && (illumination == IlluminationUpdate::Preserve);
+}
+
+namespace {
+/** Patches the colour-related overrides into one copy; reports whether anything changed. */
+bool patchColorParams(const Settings::Overrides& overrides, ColorParams& colorParams) {
+  bool changed = false;
+
+  if (overrides.colorMode) {
+    colorParams.setColorMode(*overrides.colorMode);
+    changed = true;
+  }
+
+  if (overrides.thresholdAdjustment) {
+    BlackWhiteOptions bwOptions = colorParams.blackWhiteOptions();
+    bwOptions.setThresholdAdjustment(*overrides.thresholdAdjustment);
+    colorParams.setBlackWhiteOptions(bwOptions);
+    changed = true;
+  }
+
+  if (overrides.illumination == Settings::IlluminationUpdate::Normalize) {
+    BlackWhiteOptions bwOptions = colorParams.blackWhiteOptions();
+    bwOptions.setNormalizeIllumination(true);
+    colorParams.setBlackWhiteOptions(bwOptions);
+
+    ColorCommonOptions commonOptions = colorParams.colorCommonOptions();
+    commonOptions.setNormalizeIllumination(true);
+    colorParams.setColorCommonOptions(commonOptions);
+    changed = true;
+  }
+
+  return changed;
+}
+}  // namespace
+
+void Settings::applyOverrides(const std::set<PageId>& pages, const Overrides& overrides) {
+  if (overrides.empty()) {
+    return;
+  }
+
+  for (const PageId& pageId : pages) {
+    Params params(getParams(pageId));
+
+    if (overrides.dpi) {
+      params.setOutputDpi(*overrides.dpi);
+    }
+
+    ColorParams colorParams(params.colorParams());
+    if (patchColorParams(overrides, colorParams)) {
+      params.setColorParams(colorParams);
+    }
+
+    if (overrides.despeckleLevel) {
+      params.setDespeckleLevel(static_cast<double>(*overrides.despeckleLevel));
+    }
+
+    if (overrides.dewarpingMode) {
+      DewarpingOptions dewarpingOptions(params.dewarpingOptions());
+      dewarpingOptions.setDewarpingMode(*overrides.dewarpingMode);
+      params.setDewarpingOptions(dewarpingOptions);
+    }
+
+    if (overrides.depthPerception) {
+      params.setDepthPerception(DepthPerception(*overrides.depthPerception));
+    }
+
+    setParams(pageId, params);
+  }
+}
 }  // namespace output

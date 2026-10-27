@@ -281,15 +281,7 @@ void OptionsWidget::applyColorsButtonClicked() {
 }
 
 void OptionsWidget::dpiChanged(const std::set<PageId>& pages, const Dpi& dpi) {
-  for (const PageId& pageId : pages) {
-    Params params(m_settings->getParams(pageId));
-    if (params.dewarpingOptions().dewarpingMode() == AUTO) {
-      DewarpingOptions opt(params.dewarpingOptions());
-      opt.setDewarpingMode(MANUAL);
-      m_settings->setDewarpingOptions(pageId, opt);
-    }
-    m_settings->setDpi(pageId, dpi);
-  }
+  m_settings->applyDpi(pages, dpi);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -307,10 +299,7 @@ void OptionsWidget::dpiChanged(const std::set<PageId>& pages, const Dpi& dpi) {
 }
 
 void OptionsWidget::applyColorsConfirmed(const std::set<PageId>& pages) {
-  for (const PageId& pageId : pages) {
-    m_settings->setColorParams(pageId, m_colorParams);
-    m_settings->setPictureShapeOptions(pageId, m_pictureShapeOptions);
-  }
+  m_settings->applyColors(pages, m_colorParams, m_pictureShapeOptions);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -335,9 +324,7 @@ void OptionsWidget::applySplittingButtonClicked() {
 }
 
 void OptionsWidget::applySplittingOptionsConfirmed(const std::set<PageId>& pages) {
-  for (const PageId& pageId : pages) {
-    m_settings->setSplittingOptions(pageId, m_splittingOptions);
-  }
+  m_settings->applySplitting(pages, m_splittingOptions);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -417,9 +404,7 @@ void OptionsWidget::applyDespeckleButtonClicked() {
 }
 
 void OptionsWidget::applyDespeckleConfirmed(const std::set<PageId>& pages) {
-  for (const PageId& pageId : pages) {
-    m_settings->setDespeckleLevel(pageId, m_despeckleLevel);
-  }
+  m_settings->applyDespeckleLevel(pages, m_despeckleLevel);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -443,9 +428,7 @@ void OptionsWidget::changeDewarpingButtonClicked() {
 }
 
 void OptionsWidget::dewarpingChanged(const std::set<PageId>& pages, const DewarpingOptions& opt) {
-  for (const PageId& pageId : pages) {
-    m_settings->setDewarpingOptions(pageId, opt);
-  }
+  m_settings->applyDewarping(pages, opt);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -493,9 +476,7 @@ void OptionsWidget::applyDepthPerceptionButtonClicked() {
 }
 
 void OptionsWidget::applyDepthPerceptionConfirmed(const std::set<PageId>& pages) {
-  for (const PageId& pageId : pages) {
-    m_settings->setDepthPerception(pageId, m_depthPerception);
-  }
+  m_settings->applyDepthPerception(pages, m_depthPerception);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -1036,12 +1017,7 @@ void OptionsWidget::applyProcessingParamsClicked() {
 }
 
 void OptionsWidget::applyProcessingParamsConfirmed(const std::set<PageId>& pages) {
-  for (const PageId& pageId : pages) {
-    m_settings->setBlackOnWhite(pageId, m_settings->getParams(m_pageId).isBlackOnWhite());
-    OutputProcessingParams processingParams = m_settings->getOutputProcessingParams(pageId);
-    processingParams.setBlackOnWhiteSetManually(true);
-    m_settings->setOutputProcessingParams(pageId, processingParams);
-  }
+  m_settings->copyProcessing(pages, m_pageId);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();

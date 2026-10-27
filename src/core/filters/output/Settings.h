@@ -4,10 +4,12 @@
 #ifndef SCANTAILOR_OUTPUT_SETTINGS_H_
 #define SCANTAILOR_OUTPUT_SETTINGS_H_
 
-#include <DistortionModel.h>
+#include <dewarping/DistortionModel.h>
 
 #include <QMutex>
 #include <memory>
+#include <optional>
+#include <set>
 #include <unordered_map>
 
 #include "ColorParams.h"
@@ -92,6 +94,50 @@ class Settings {
   void setOutputProcessingParams(const PageId& pageId, const OutputProcessingParams& outputProcessingParams);
 
   void setBlackOnWhite(const PageId& pageId, bool blackOnWhite);
+
+  /** Bulk variants of the per-page setters, used by the "Apply to…" actions. */
+  void applyDpi(const std::set<PageId>& pages, const Dpi& dpi);
+
+  void applyColors(const std::set<PageId>& pages, const ColorParams& colors, const PictureShapeOptions& pictureShape);
+
+  void applySplitting(const std::set<PageId>& pages, const SplittingOptions& options);
+
+  void applyDespeckleLevel(const std::set<PageId>& pages, double level);
+
+  void applyDewarping(const std::set<PageId>& pages, const DewarpingOptions& options);
+
+  void applyDepthPerception(const std::set<PageId>& pages, const DepthPerception& depth);
+
+  /** Copies the source's black-on-white choice, marking it manual on every target. */
+  void copyProcessing(const std::set<PageId>& pages, const PageId& sourcePage);
+
+  enum class IlluminationUpdate { Preserve, Normalize };
+
+  /**
+   * \brief The output settings a command line asks for.
+   *
+   * Every field is optional so that an absent flag leaves the stored value
+   * alone; a free function or a zero threshold still counts as engaged.
+   */
+  struct Overrides {
+    std::optional<Dpi> dpi;
+    std::optional<ColorMode> colorMode;
+    std::optional<int> thresholdAdjustment;
+    std::optional<DespeckleLevel> despeckleLevel;
+    std::optional<DewarpingMode> dewarpingMode;
+    std::optional<double> depthPerception;
+    IlluminationUpdate illumination = IlluminationUpdate::Preserve;
+
+    bool empty() const;
+  };
+
+  /**
+   * \brief Patches only the engaged overrides into each page's parameters.
+   *
+   * Unlike applyDpi(), the DPI here never touches the dewarping mode: the
+   * caller asked for a file-level override, not for an interactive edit.
+   */
+  void applyOverrides(const std::set<PageId>& pages, const Overrides& overrides);
 
  private:
   using PerPageParams = std::unordered_map<PageId, Params>;

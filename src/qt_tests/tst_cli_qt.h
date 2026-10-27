@@ -20,6 +20,9 @@ class TestCliQt : public QObject {
   void resolvesFilterRange();
   void rendersReport();
   void mapsExitCode();
+  void appliesStageOverrides();
+  void preservesUnspecifiedStageSettings();
+  void respectsApplicationRange();
 };
 
 #endif  // TST_CLI_QT_H

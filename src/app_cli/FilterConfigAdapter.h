@@ -5,13 +5,14 @@
 #define SCANTAILOR_APP_CLI_FILTERCONFIGADAPTER_H_
 
 #include <memory>
+#include <optional>
 #include <set>
 
 #include "CliRequest.h"
 #include "FilterRange.h"
 #include "NonCopyable.h"
+#include "PageId.h"
 
-class PageId;
 class PageSequence;
 class StageSequence;
 
@@ -40,12 +41,16 @@ class FilterConfigAdapter {
   void applyPageLayout();
   void applyOutput();
 
-  /** Every page of the run: the CLI has no page selection, so all of them are configured. */
-  std::set<PageId> selectedPageIds() const;
+  /**
+   * Every page of the run: the CLI has no page selection, so all of them are
+   * configured. The set is built on first use and reused by every stage.
+   */
+  const std::set<PageId>& selectedPageIds();
 
   const CliRequest& m_request;
   std::shared_ptr<StageSequence> m_stages;
   const PageSequence& m_pages;
+  std::optional<std::set<PageId>> m_selectedPageIds;
 };
 
 }  // namespace cli

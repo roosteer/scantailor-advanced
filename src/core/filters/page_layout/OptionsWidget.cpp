@@ -338,28 +338,20 @@ void OptionsWidget::applyMargins(const std::set<PageId>& pages,
     return;
   }
 
-  const bool autoMarginsEnabled = m_settings->isPageAutoMarginsEnabled(m_pageId);
-  for (const PageId& pageId : pages) {
-    m_settings->setPageAutoMarginsEnabled(pageId, autoMarginsEnabled);
-    if (autoMarginsEnabled) {
-      m_settings->invalidateContentSize(pageId);
-    } else {
-      Margins target = m_settings->getHardMarginsMM(pageId);
-      if (applyLeft) {
-        target.setLeft(m_marginsMM.left());
-      }
-      if (applyRight) {
-        target.setRight(m_marginsMM.right());
-      }
-      if (applyTop) {
-        target.setTop(m_marginsMM.top());
-      }
-      if (applyBottom) {
-        target.setBottom(m_marginsMM.bottom());
-      }
-      m_settings->setHardMarginsMM(pageId, target);
-    }
+  Settings::MarginValues selectedValues;
+  if (applyLeft) {
+    selectedValues.left = m_marginsMM.left();
   }
+  if (applyRight) {
+    selectedValues.right = m_marginsMM.right();
+  }
+  if (applyTop) {
+    selectedValues.top = m_marginsMM.top();
+  }
+  if (applyBottom) {
+    selectedValues.bottom = m_marginsMM.bottom();
+  }
+  m_settings->copyMargins(pages, m_pageId, selectedValues);
 
   emit aggregateHardSizeChanged();
   emit invalidateAllThumbnails();
@@ -370,13 +362,7 @@ void OptionsWidget::applyAlignment(const std::set<PageId>& pages) {
     return;
   }
 
-  for (const PageId& pageId : pages) {
-    if (pageId == m_pageId) {
-      continue;
-    }
-
-    m_settings->setPageAlignment(pageId, m_alignment);
-  }
+  m_settings->copyAlignment(pages, m_pageId, m_alignment);
 
   emit invalidateAllThumbnails();
 }

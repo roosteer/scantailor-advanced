@@ -6,6 +6,7 @@
 #include <cassert>
 
 #include "AbstractRelinker.h"
+#include "PageLayoutAdapter.h"
 #include "RelinkablePath.h"
 
 namespace page_split {
@@ -62,6 +63,40 @@ void Settings::setLayoutTypeFor(const LayoutType layoutType, const std::set<Page
   UpdateAction action;
 
   for (const PageId& pageId : pages) {
+    updatePageLocked(pageId.imageId(), action);
+  }
+}
+
+void Settings::applyLayout(const std::set<PageId>& pages,
+                           const LayoutType layoutType,
+                           const Params& source,
+                           const CutTransfer transfer) {
+  QMutexLocker locker(&m_mutex);
+
+  for (const PageId& pageId : pages) {
+    UpdateAction action;
+    action.setLayoutType(layoutType);
+
+    if ((transfer == CutTransfer::CopySource) && (layoutType != AUTO_LAYOUT_TYPE)
+        && (layoutType != SINGLE_PAGE_UNCUT)) {
+      Params newParams(source);
+
+      const Record targetRecord = getPageRecordLocked(pageId.imageId());
+      const Params* oldParams = targetRecord.params();
+      if (oldParams) {
+        const PageLayout adapted =
+            PageLayoutAdapter::adaptPageLayout(source.pageLayout(), oldParams->pageLayout().uncutOutline().boundingRect());
+
+        action.setLayoutType(adapted.toLayoutType());
+        newParams.setPageLayout(adapted);
+
+        Dependencies deps = oldParams->dependencies();
+        deps.setLayoutType(adapted.toLayoutType());
+        newParams.setDependencies(deps);
+      }
+      action.setParams(newParams);
+    }
+
     updatePageLocked(pageId.imageId(), action);
   }
 }

@@ -127,10 +127,23 @@ class Settings {
   void setLayoutTypeForAllPages(LayoutType layoutType);
 
   /**
-   * Sets layout type for specified pages, removing other page
+   * \brief Sets layout type for specified pages, removing other page
    * parameters where they conflict with the new layout type.
    */
   void setLayoutTypeFor(LayoutType layoutType, const std::set<PageId>& pages);
+
+  /** Whether a bulk layout change keeps the target's cutters or adopts the source's. */
+  enum class CutTransfer { KeepTarget, CopySource };
+
+  /**
+   * \brief Sets \p layoutType on every page of \p pages.
+   *
+   * With CutTransfer::CopySource and a concrete layout type, the source
+   * parameters are copied onto each target, with the source cutters adapted to
+   * that target's own outline. Targets that already carry parameters keep their
+   * dependencies apart from the layout type.
+   */
+  void applyLayout(const std::set<PageId>& pages, LayoutType layoutType, const Params& source, CutTransfer transfer);
 
   /**
    * \brief Returns all data related to a page as a single object.

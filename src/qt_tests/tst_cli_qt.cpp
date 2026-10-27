@@ -8,14 +8,42 @@
 #include "CliRequest.h"
 #include "CliUsage.h"
 #include "ExitCode.h"
+#include "FilterConfigAdapter.h"
 #include "FilterRange.h"
 
+#include <ImageFileInfo.h>
+#include <ImageMetadata.h>
+#include <Margins.h>
+#include <PageInfo.h>
+#include <PageSelectionAccessor.h>
+#include <PageSelectionProvider.h>
+#include <PageSequence.h>
+#include <ProjectPages.h>
+#include <StageSequence.h>
+#include <imageproc/Dpi.h>
+
+#include <filters/deskew/Params.h>
+#include <filters/deskew/Settings.h>
+#include <filters/fix_orientation/Settings.h>
+#include <filters/output/Params.h>
+#include <filters/output/Settings.h>
+#include <filters/page_layout/Alignment.h>
+#include <filters/page_layout/Params.h>
+#include <filters/page_layout/Settings.h>
+#include <filters/page_split/Settings.h>
+#include <filters/select_content/Params.h>
+#include <filters/select_content/Settings.h>
+
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
 #include <QStringList>
 #include <QtTest/QtTest>
+#include <memory>
+#include <set>
+#include <vector>
 
 namespace {
 
@@ -25,6 +53,63 @@ int codeOf(const cli::ParseResult& result) {
 
 int codeOf(cli::ExitCode code) {
   return static_cast<int>(code);
+}
+
+/** Every page of the run, as the CLI's own provider answers it. */
+class TestPageSelectionProvider : public PageSelectionProvider {
+ public:
+  explicit TestPageSelectionProvider(std::shared_ptr<ProjectPages> pages) : m_pages(std::move(pages)) {}
+
+  PageSequence allPages() const override { return m_pages->toPageSequence(PAGE_VIEW); }
+
+  std::set<PageId> selectedPages() const override {
+    std::set<PageId> ids;
+    for (const PageInfo& page : m_pages->toPageSequence(PAGE_VIEW)) {
+      ids.insert(page.id());
+    }
+    return ids;
+  }
+
+  std::vector<PageRange> selectedRanges() const override { return {}; }
+
+ private:
+  std::shared_ptr<ProjectPages> m_pages;
+};
+
+/** The stages and pages a CLI run configures, without touching image files. */
+struct TestSession {
+  std::shared_ptr<ProjectPages> pages;
+  std::shared_ptr<StageSequence> stages;
+  PageSequence sequence;
+};
+
+TestSession makeSession(const int imageCount) {
+  std::vector<ImageFileInfo> files;
+  for (int i = 0; i < imageCount; ++i) {
+    const QString path = QStringLiteral("/scans/page-%1.png").arg(i);
+    files.emplace_back(QFileInfo(path), std::vector<ImageMetadata>{ImageMetadata(QSize(1000, 1400), Dpi(300, 300))});
+  }
+
+  TestSession session;
+  session.pages = std::make_shared<ProjectPages>(files, ProjectPages::ONE_PAGE, Qt::LeftToRight);
+  const auto provider = std::make_shared<TestPageSelectionProvider>(session.pages);
+  session.stages = std::make_shared<StageSequence>(session.pages, PageSelectionAccessor(provider));
+  session.sequence = session.pages->toPageSequence(PAGE_VIEW);
+  return session;
+}
+
+cli::CliRequest fullRequest() {
+  cli::CliRequest request;
+  request.orientation = 90;
+  request.layoutType = page_split::TWO_PAGES;
+  request.deskewMode = cli::DeskewMode::MANUAL;
+  request.deskewAngle = 2.0;
+  request.contentBox = cli::MmRect{10.0, 10.0, 110.0, 210.0};
+  request.margins = cli::MmRect{5.0, 6.0, 7.0, 8.0};
+  request.alignment = cli::Alignment::CENTER;
+  request.outputDpi = 300;
+  request.colorMode = output::MIXED;
+  return request;
 }
 
 }  // namespace
@@ -286,4 +371,98 @@ void TestCliQt::mapsExitCode() {
   cli::BatchReport withFailure;
   withFailure.pages = {okPage, failedPage};
   QCOMPARE(codeOf(cli::exitCodeFor(withFailure)), codeOf(cli::ExitCode::FILTER_ERROR));
+}
+
+void TestCliQt::appliesStageOverrides() {
+  const TestSession session = makeSession(2);
+  const cli::CliRequest request = fullRequest();
+
+  cli::FilterConfigAdapter adapter(request, session.stages, session.sequence);
+  adapter.apply(cli::FilterRange());
+
+  for (const PageInfo& page : session.sequence) {
+    const PageId pageId = page.id();
+
+    QCOMPARE(session.stages->fixOrientationFilter()->getSettings()->getRotationFor(pageId.imageId()).toDegrees(), 90);
+
+    QVERIFY2(session.stages->pageSplitFilter()->getSettings()->getPageRecord(pageId.imageId()).combinedLayoutType()
+                 == page_split::TWO_PAGES,
+             qPrintable(pageId.imageId().filePath()));
+
+    const std::unique_ptr<deskew::Params> deskewParams =
+        session.stages->deskewFilter()->getSettings()->getPageParams(pageId);
+    QVERIFY(deskewParams != nullptr);
+    QVERIFY(deskewParams->mode() == MODE_MANUAL);
+    QVERIFY(qAbs(deskewParams->deskewAngle() - 2.0) < 1e-9);
+
+    const std::unique_ptr<select_content::Params> contentParams =
+        session.stages->selectContentFilter()->getSettings()->getPageParams(pageId);
+    QVERIFY(contentParams != nullptr);
+    QCOMPARE(contentParams->pageRect(), QRectF(10.0, 10.0, 100.0, 200.0));
+
+    const Margins margins = session.stages->pageLayoutFilter()->getSettings()->getHardMarginsMM(pageId);
+    QCOMPARE(margins.left(), 5.0);
+    QCOMPARE(margins.top(), 6.0);
+    QCOMPARE(margins.right(), 7.0);
+    QCOMPARE(margins.bottom(), 8.0);
+    QVERIFY(session.stages->pageLayoutFilter()->getSettings()->getPageAlignment(pageId)
+            == page_layout::Alignment(page_layout::Alignment::VCENTER, page_layout::Alignment::HCENTER));
+
+    const output::Params outputParams = session.stages->outputFilter()->getSettings()->getParams(pageId);
+    QVERIFY(outputParams.outputDpi() == Dpi(300, 300));
+    QVERIFY(outputParams.colorParams().colorMode() == output::MIXED);
+  }
+}
+
+void TestCliQt::preservesUnspecifiedStageSettings() {
+  const TestSession session = makeSession(2);
+  cli::CliRequest request;
+  request.orientation = 270;
+
+  cli::FilterConfigAdapter adapter(request, session.stages, session.sequence);
+  adapter.apply(cli::FilterRange());
+
+  const auto pageSplitSettings = session.stages->pageSplitFilter()->getSettings();
+  for (const PageInfo& page : session.sequence) {
+    const PageId pageId = page.id();
+    QCOMPARE(session.stages->fixOrientationFilter()->getSettings()->getRotationFor(pageId.imageId()).toDegrees(), 270);
+    QVERIFY(pageSplitSettings->getPageRecord(pageId.imageId()).params() == nullptr);
+    QVERIFY(session.stages->deskewFilter()->getSettings()->isParamsNull(pageId));
+    QVERIFY(session.stages->selectContentFilter()->getSettings()->isParamsNull(pageId));
+    QVERIFY(session.stages->pageLayoutFilter()->getSettings()->isParamsNull(pageId));
+    QVERIFY(session.stages->outputFilter()->getSettings()->isParamsNull(pageId));
+  }
+}
+
+void TestCliQt::respectsApplicationRange() {
+  {
+    const TestSession session = makeSession(1);
+    const cli::CliRequest request = fullRequest();
+
+    cli::FilterConfigAdapter adapter(request, session.stages, session.sequence);
+    adapter.apply(cli::FilterRange{0, session.stages->pageSplitFilterIdx()});
+
+    const PageId pageId = session.sequence.pageAt(0).id();
+    QVERIFY(!session.stages->fixOrientationFilter()->getSettings()->isRotationNull(pageId.imageId()));
+    QVERIFY(session.stages->pageSplitFilter()->getSettings()->getPageRecord(pageId.imageId()).combinedLayoutType()
+            == page_split::TWO_PAGES);
+    QVERIFY(session.stages->deskewFilter()->getSettings()->isParamsNull(pageId));
+    QVERIFY(session.stages->pageLayoutFilter()->getSettings()->isParamsNull(pageId));
+    QVERIFY(session.stages->outputFilter()->getSettings()->isParamsNull(pageId));
+  }
+  {
+    const TestSession session = makeSession(1);
+    const cli::CliRequest request = fullRequest();
+
+    cli::FilterConfigAdapter adapter(request, session.stages, session.sequence);
+    adapter.apply(cli::FilterRange{session.stages->deskewFilterIdx(), cli::kFilterCount - 1});
+
+    const PageId pageId = session.sequence.pageAt(0).id();
+    QVERIFY(session.stages->fixOrientationFilter()->getSettings()->isRotationNull(pageId.imageId()));
+    QVERIFY(session.stages->pageSplitFilter()->getSettings()->getPageRecord(pageId.imageId()).combinedLayoutType()
+            == page_split::AUTO_LAYOUT_TYPE);
+    QVERIFY(session.stages->deskewFilter()->getSettings()->getPageParams(pageId) != nullptr);
+    QVERIFY(session.stages->pageLayoutFilter()->getSettings()->getPageParams(pageId) != nullptr);
+    QVERIFY(session.stages->outputFilter()->getSettings()->getParams(pageId).outputDpi() == Dpi(300, 300));
+  }
 }

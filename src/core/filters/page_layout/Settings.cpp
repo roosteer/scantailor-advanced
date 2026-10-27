@@ -321,6 +321,57 @@ void Settings::enableShowingMiddleRect(const bool state) {
   m_impl->enableShowingMiddleRect(state);
 }
 
+void Settings::copyMargins(const std::set<PageId>& pages,
+                           const PageId& sourcePage,
+                           const MarginValues& selectedValues) {
+  const bool autoMarginsEnabled = isPageAutoMarginsEnabled(sourcePage);
+
+  for (const PageId& pageId : pages) {
+    setPageAutoMarginsEnabled(pageId, autoMarginsEnabled);
+    if (autoMarginsEnabled) {
+      invalidateContentSize(pageId);
+    } else {
+      Margins target = getHardMarginsMM(pageId);
+      if (selectedValues.left) {
+        target.setLeft(*selectedValues.left);
+      }
+      if (selectedValues.right) {
+        target.setRight(*selectedValues.right);
+      }
+      if (selectedValues.top) {
+        target.setTop(*selectedValues.top);
+      }
+      if (selectedValues.bottom) {
+        target.setBottom(*selectedValues.bottom);
+      }
+      setHardMarginsMM(pageId, target);
+    }
+  }
+}
+
+void Settings::overrideMargins(const std::set<PageId>& pages, const Margins& marginsMm) {
+  for (const PageId& pageId : pages) {
+    setHardMarginsMM(pageId, marginsMm);
+  }
+}
+
+void Settings::copyAlignment(const std::set<PageId>& pages,
+                             const PageId& sourcePage,
+                             const Alignment& alignment) {
+  for (const PageId& pageId : pages) {
+    if (pageId == sourcePage) {
+      continue;
+    }
+    setPageAlignment(pageId, alignment);
+  }
+}
+
+void Settings::applyAlignment(const std::set<PageId>& pages, const Alignment& alignment) {
+  for (const PageId& pageId : pages) {
+    setPageAlignment(pageId, alignment);
+  }
+}
+
 /*============================== Settings::Item =============================*/
 
 Settings::Item::Item(const PageId& pageId,

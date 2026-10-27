@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "Filter.h"
-#include "PageLayoutAdapter.h"
 #include "ProjectPages.h"
 #include "ScopedIncDec.h"
 #include "Settings.h"
@@ -204,37 +203,19 @@ void OptionsWidget::layoutTypeSet(const std::set<PageId>& pages, const LayoutTyp
     return;
   }
 
-  const Params params = *(m_settings->getPageRecord(m_pageId.imageId()).params());
-
-  if (layoutType != AUTO_LAYOUT_TYPE) {
-    for (const PageId& pageId : pages) {
-      Settings::UpdateAction updateAction;
-      updateAction.setLayoutType(layoutType);
-      if (applyCut && (layoutType != SINGLE_PAGE_UNCUT)) {
-        Params newPageParams(params);
-        const Params* oldPageParams = m_settings->getPageRecord(pageId.imageId()).params();
-        if (oldPageParams) {
-          PageLayout newPageLayout = PageLayoutAdapter::adaptPageLayout(
-              params.pageLayout(), oldPageParams->pageLayout().uncutOutline().boundingRect());
-
-          updateAction.setLayoutType(newPageLayout.toLayoutType());
-          newPageParams.setPageLayout(newPageLayout);
-
-          Dependencies deps = oldPageParams->dependencies();
-          deps.setLayoutType(newPageLayout.toLayoutType());
-          newPageParams.setDependencies(deps);
-        }
-        updateAction.setParams(newPageParams);
-      }
-      m_settings->updatePage(pageId.imageId(), updateAction);
-    }
-  } else {
-    for (const PageId& pageId : pages) {
-      Settings::UpdateAction updateParams;
-      updateParams.setLayoutType(layoutType);
-      m_settings->updatePage(pageId.imageId(), updateParams);
-    }
+  const Settings::Record sourceRecord = m_settings->getPageRecord(m_pageId.imageId());
+  const Params* sourceParams = sourceRecord.params();
+  if (!sourceParams) {
+    // The dialog is non-modal; the source page may have lost its parameters
+    // while it was open, exactly as showChangeDialog() refuses to open then.
+    return;
   }
+  const Params source(*sourceParams);
+
+  const Settings::CutTransfer transfer = (applyCut && (layoutType != SINGLE_PAGE_UNCUT))
+                                             ? Settings::CutTransfer::CopySource
+                                             : Settings::CutTransfer::KeepTarget;
+  m_settings->applyLayout(pages, layoutType, source, transfer);
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
