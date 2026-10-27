@@ -1,7 +1,6 @@
 set(CMAKE_AUTOUIC ON)
 
 set(ui_files
-    ApplyDialog.ui
     OptionsWidget.ui)
 
 set(sources
@@ -14,8 +13,8 @@ set(sources
     CacheDrivenTask.cpp CacheDrivenTask.h
     Dependencies.cpp Dependencies.h
     ObliqueFinder.cpp ObliqueFinder.h
+    ObliquePolicy.cpp ObliquePolicy.h
     Params.cpp Params.h
-    ApplyDialog.cpp ApplyDialog.h
     Utils.cpp Utils.h)
 
 add_library(deskew STATIC ${sources} ${ui_files})

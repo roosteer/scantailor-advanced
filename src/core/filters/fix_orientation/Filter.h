@@ -9,11 +9,11 @@
 #include "AbstractFilter.h"
 #include "FilterResult.h"
 #include "NonCopyable.h"
+#include "PageSelectionAccessor.h"
 #include "PageView.h"
 #include "SafeDeletingQObjectPtr.h"
 
 class ImageId;
-class PageSelectionAccessor;
 class QString;
 class QDomDocument;
 class QDomElement;
@@ -67,6 +67,8 @@ class Filter : public AbstractFilter {
   std::shared_ptr<Settings> getSettings() const { return m_settings; }
 
  private:
+  OptionsWidget* ensureOptionsWidget();
+
   void writeParams(QDomDocument& doc, QDomElement& filterEl, const ImageId& imageId, int numericId) const;
 
   void saveImageSettings(const ProjectWriter& writer, QDomDocument& doc, QDomElement& filterEl) const;
@@ -77,6 +79,7 @@ class Filter : public AbstractFilter {
 
   std::shared_ptr<Settings> m_settings;
   std::shared_ptr<ImageSettings> m_imageSettings;
+  PageSelectionAccessor m_pageSelectionAccessor;
   SafeDeletingQObjectPtr<OptionsWidget> m_optionsWidget;
 };
 }  // namespace fix_orientation

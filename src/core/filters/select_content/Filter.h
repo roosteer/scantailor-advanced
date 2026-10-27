@@ -12,11 +12,11 @@
 #include "FilterResult.h"
 #include "NonCopyable.h"
 #include "PageOrderOption.h"
+#include "PageSelectionAccessor.h"
 #include "PageView.h"
 #include "SafeDeletingQObjectPtr.h"
 #include "Settings.h"
 
-class PageSelectionAccessor;
 class QString;
 
 namespace page_layout {
@@ -70,10 +70,13 @@ class Filter : public AbstractFilter {
   std::shared_ptr<Settings> getSettings() const { return m_settings; }
 
  private:
+  OptionsWidget* ensureOptionsWidget();
+
   void writePageSettings(QDomDocument& doc, QDomElement& filterEl, const PageId& pageId, int numericId) const;
 
 
   std::shared_ptr<Settings> m_settings;
+  PageSelectionAccessor m_pageSelectionAccessor;
   SafeDeletingQObjectPtr<OptionsWidget> m_optionsWidget;
   std::vector<PageOrderOption> m_pageOrderOptions;
   int m_selectedPageOrder;

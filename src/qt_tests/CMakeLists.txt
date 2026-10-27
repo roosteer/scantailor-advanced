@@ -2,6 +2,7 @@ set(sources
     main.cpp
     tst_cli_qt.cpp
     tst_core_qt.cpp
+    tst_page_apply_dialog.cpp
     tst_ux_qt.cpp)
 
 add_executable(qt_tests ${sources})

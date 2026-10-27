@@ -62,8 +62,6 @@ class PipelineSession {
 
   bool loadProject(CliError& error);
 
-  std::shared_ptr<BackgroundTask> createCompositeTask(const PageInfo& page, const FilterRange& range);
-
   CliRequest m_request;
   std::shared_ptr<ProjectPages> m_pages;
   PageSequence m_pageSequence;

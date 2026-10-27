@@ -28,6 +28,8 @@ class SafeDeletingQObjectPtr {
 
   T* get() const { return m_obj; }
 
+  explicit operator bool() const { return m_obj != nullptr; }
+
   void swap(SafeDeletingQObjectPtr& other) {
     T* tmp = m_obj;
     m_obj = other.m_obj;

@@ -419,10 +419,12 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
   updateSortOptions();
 
   m_contentBoxPropagator = std::make_unique<ContentBoxPropagator>(
-      m_stages->pageLayoutFilter(), createCompositeCacheDrivenTask(m_stages->selectContentFilterIdx()));
+      m_stages->pageLayoutFilter(),
+      StageChain(m_stages, chainDeps()).cacheDrivenTaskFor(m_stages->selectContentFilterIdx()));
 
   m_pageOrientationPropagator = std::make_unique<PageOrientationPropagator>(
-      m_stages->pageSplitFilter(), createCompositeCacheDrivenTask(m_stages->fixOrientationFilterIdx()));
+      m_stages->pageSplitFilter(),
+      StageChain(m_stages, chainDeps()).cacheDrivenTaskFor(m_stages->fixOrientationFilterIdx()));
 
   // Thumbnails are stored relative to the output directory,
   // so recreate the thumbnail cache.
@@ -648,7 +650,8 @@ void MainWindow::updateSortOptions() {
 void MainWindow::resetThumbSequence(const std::shared_ptr<const PageOrderProvider>& pageOrderProvider,
                                     const ThumbnailSequence::SelectionAction selectionAction) {
   if (m_thumbnailCache) {
-    const std::shared_ptr<CompositeCacheDrivenTask> task(createCompositeCacheDrivenTask(m_curFilter));
+    const std::shared_ptr<CompositeCacheDrivenTask> task(
+        StageChain(m_stages, chainDeps()).cacheDrivenTaskFor(m_curFilter));
 
     m_thumbSequence->setThumbnailFactory(
         std::make_shared<ThumbnailFactory>(m_thumbnailCache, m_maxLogicalThumbSize, task));
@@ -1232,7 +1235,7 @@ void MainWindow::startBatchProcessing() {
     for (int i = 0; i < m_stages->count(); i++) {
       m_stages->filterAt(i)->loadDefaultSettings(page);
     }
-    m_batchQueue->addProcessingTask(page, createCompositeTask(page, m_curFilter, /*batch=*/true, m_debug));
+    m_batchQueue->addProcessingTask(page, StageChain(m_stages, chainDeps(true, m_debug)).taskFor(page, m_curFilter));
   }
 
   focusButton->setChecked(true);
@@ -1711,7 +1714,7 @@ void MainWindow::loadPageInteractive(const PageInfo& page) {
   assert(m_thumbnailCache);
 
   m_interactiveQueue->cancelAndClear();
-  m_interactiveQueue->addProcessingTask(page, createCompositeTask(page, m_curFilter, false, m_debug));
+  m_interactiveQueue->addProcessingTask(page, StageChain(m_stages, chainDeps(false, m_debug)).taskFor(page, m_curFilter));
   m_workerThreadPool->submitTask(m_interactiveQueue->takeForProcessing());
 }  // MainWindow::loadPageInteractive
 
@@ -2056,80 +2059,9 @@ void MainWindow::eraseOutputFiles(const std::set<PageId>& pages) {
   }
 }
 
-BackgroundTaskPtr MainWindow::createCompositeTask(const PageInfo& page,
-                                                  const int lastFilterIdx,
-                                                  const bool batch,
-                                                  bool debug) {
-  std::shared_ptr<fix_orientation::Task> fixOrientationTask;
-  std::shared_ptr<page_split::Task> pageSplitTask;
-  std::shared_ptr<deskew::Task> deskewTask;
-  std::shared_ptr<select_content::Task> selectContentTask;
-  std::shared_ptr<page_layout::Task> pageLayoutTask;
-  std::shared_ptr<output::Task> outputTask;
-
-  if (batch) {
-    debug = false;
-  }
-
-  if (lastFilterIdx >= m_stages->outputFilterIdx()) {
-    outputTask = m_stages->outputFilter()->createTask(page.id(), m_thumbnailCache, m_outFileNameGen, batch, debug);
-    debug = false;
-  }
-  if (lastFilterIdx >= m_stages->pageLayoutFilterIdx()) {
-    pageLayoutTask = m_stages->pageLayoutFilter()->createTask(page.id(), outputTask, batch, debug);
-    debug = false;
-  }
-  if (lastFilterIdx >= m_stages->selectContentFilterIdx()) {
-    selectContentTask = m_stages->selectContentFilter()->createTask(page.id(), pageLayoutTask, batch, debug);
-    debug = false;
-  }
-  if (lastFilterIdx >= m_stages->deskewFilterIdx()) {
-    deskewTask = m_stages->deskewFilter()->createTask(page.id(), selectContentTask, batch, debug);
-    debug = false;
-  }
-  if (lastFilterIdx >= m_stages->pageSplitFilterIdx()) {
-    pageSplitTask = m_stages->pageSplitFilter()->createTask(page, deskewTask, batch, debug);
-    debug = false;
-  }
-  if (lastFilterIdx >= m_stages->fixOrientationFilterIdx()) {
-    fixOrientationTask = m_stages->fixOrientationFilter()->createTask(page.id(), pageSplitTask, batch);
-    debug = false;
-  }
-  assert(fixOrientationTask);
-  return std::make_shared<LoadFileTask>(batch ? BackgroundTask::BATCH : BackgroundTask::INTERACTIVE, page,
-                                        m_thumbnailCache, m_pages, fixOrientationTask);
-}  // MainWindow::createCompositeTask
-
-std::shared_ptr<CompositeCacheDrivenTask> MainWindow::createCompositeCacheDrivenTask(const int lastFilterIdx) {
-  std::shared_ptr<fix_orientation::CacheDrivenTask> fixOrientationTask;
-  std::shared_ptr<page_split::CacheDrivenTask> pageSplitTask;
-  std::shared_ptr<deskew::CacheDrivenTask> deskewTask;
-  std::shared_ptr<select_content::CacheDrivenTask> selectContentTask;
-  std::shared_ptr<page_layout::CacheDrivenTask> pageLayoutTask;
-  std::shared_ptr<output::CacheDrivenTask> outputTask;
-
-  if (lastFilterIdx >= m_stages->outputFilterIdx()) {
-    outputTask = m_stages->outputFilter()->createCacheDrivenTask(m_outFileNameGen);
-  }
-  if (lastFilterIdx >= m_stages->pageLayoutFilterIdx()) {
-    pageLayoutTask = m_stages->pageLayoutFilter()->createCacheDrivenTask(outputTask);
-  }
-  if (lastFilterIdx >= m_stages->selectContentFilterIdx()) {
-    selectContentTask = m_stages->selectContentFilter()->createCacheDrivenTask(pageLayoutTask);
-  }
-  if (lastFilterIdx >= m_stages->deskewFilterIdx()) {
-    deskewTask = m_stages->deskewFilter()->createCacheDrivenTask(selectContentTask);
-  }
-  if (lastFilterIdx >= m_stages->pageSplitFilterIdx()) {
-    pageSplitTask = m_stages->pageSplitFilter()->createCacheDrivenTask(deskewTask);
-  }
-  if (lastFilterIdx >= m_stages->fixOrientationFilterIdx()) {
-    fixOrientationTask = m_stages->fixOrientationFilter()->createCacheDrivenTask(pageSplitTask);
-  }
-
-  assert(fixOrientationTask);
-  return fixOrientationTask;
-}  // MainWindow::createCompositeCacheDrivenTask
+StageChain::Deps MainWindow::chainDeps(const bool batch, const bool debug) const {
+  return {m_thumbnailCache, m_pages, m_outFileNameGen, batch, debug};
+}
 
 void MainWindow::updateDisambiguationRecords(const PageSequence& pages) {
   for (const PageInfo& page : pages) {

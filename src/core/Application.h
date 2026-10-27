@@ -21,10 +21,6 @@ class Application : public QApplication {
 
   std::list<QString> getLanguagesList() const;
 
-  bool isPortableVersion() const;
-
-  const QString& getPortableConfigPath() const;
-
  private:
   void initTranslations();
 
@@ -35,7 +31,6 @@ class Application : public QApplication {
   QTranslator m_translator;
   QString m_currentLocale;
   std::map<QString, QString> m_translationsMap;
-  QString m_portableConfigPath;
 };
 
 

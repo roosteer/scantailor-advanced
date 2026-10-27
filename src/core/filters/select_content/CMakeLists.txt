@@ -1,14 +1,12 @@
 set(CMAKE_AUTOUIC ON)
 
 set(ui_files
-    ApplyDialog.ui
     OptionsWidget.ui)
 
 set(sources
     ImageView.cpp ImageView.h
     Filter.cpp Filter.h
     OptionsWidget.cpp OptionsWidget.h
-    ApplyDialog.cpp ApplyDialog.h
     ContentBoxFinder.cpp ContentBoxFinder.h
     PageFinder.cpp PageFinder.h
     Task.cpp Task.h

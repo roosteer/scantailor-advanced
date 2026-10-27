@@ -497,6 +497,10 @@ void Task::UiUpdater::updateUI(FilterUiInterface* ui) {
   }
 
   OptionsWidget* const optWidget = m_filter->optionsWidget();
+  if (!optWidget) {
+    // The options panel is built on first UI use, so a headless run has none to drive.
+    return;
+  }
   optWidget->postUpdateUI();
   ui->setOptionsWidget(optWidget, ui->KEEP_OWNERSHIP);
 

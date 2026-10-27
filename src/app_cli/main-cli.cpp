@@ -1,7 +1,10 @@
 // Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
+#include <config.h>
+
 #include <QByteArray>
+#include <QGuiApplication>
 #include <QTextStream>
 #include <QtGlobal>
 
@@ -9,11 +12,11 @@
 #include <memory>
 #include <optional>
 
-#include "Application.h"
 #include "BatchReport.h"
 #include "CliParser.h"
 #include "CliRequest.h"
 #include "CliUsage.h"
+#include "ConfigPaths.h"
 #include "ConsoleLog.h"
 #include "ExitCode.h"
 #include "FilterRange.h"
@@ -29,14 +32,19 @@ int main(int argc, char* argv[]) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
   }
 
-  // Core services (DefaultParamsProfileManager) cast qApp to Application,
-  // so the CLI must construct that subclass rather than QApplication.
-  Application app(argc, argv);
-  QApplication::setApplicationName("scantailor-advanced-cli");
+  // QGuiApplication is enough: nothing on the headless path builds a widget.
+  QGuiApplication app(argc, argv);
+
+  // Same identity and the same config root as the GUI, so profiles and
+  // settings are shared rather than silently falling back to the built-ins.
+  QGuiApplication::setApplicationName(APPLICATION_NAME);
+  QGuiApplication::setOrganizationName(ORGANIZATION_NAME);
+  ConfigPaths::setPortableRoot(ConfigPaths::resolvePortableRoot(QGuiApplication::applicationDirPath()));
+  ConfigPaths::configureQSettings();
 
   try {
     // argv[0] is the program name.
-    const ParseResult parsed = parseCommandLine(QApplication::arguments().mid(1));
+    const ParseResult parsed = parseCommandLine(QGuiApplication::arguments().mid(1));
     if (!parsed.error.ok()) {
       ConsoleLog::writeError(parsed.error.message);
       QTextStream(stderr) << "Use --help for usage information.\n";

@@ -21,9 +21,10 @@
 
 namespace page_split {
 Filter::Filter(std::shared_ptr<ProjectPages> pageSequence, const PageSelectionAccessor& pageSelectionAccessor)
-    : m_pages(std::move(pageSequence)), m_settings(std::make_shared<Settings>()), m_selectedPageOrder(0) {
-  m_optionsWidget.reset(new OptionsWidget(m_settings, m_pages, pageSelectionAccessor));
-
+    : m_pages(std::move(pageSequence)),
+      m_settings(std::make_shared<Settings>()),
+      m_pageSelectionAccessor(pageSelectionAccessor),
+      m_selectedPageOrder(0) {
   const PageOrderOption::ProviderPtr defaultOrder;
   const auto orderBySplitType = std::make_shared<OrderBySplitTypeProvider>(m_settings);
   m_pageOrderOptions.emplace_back(tr("Natural order"), defaultOrder);
@@ -45,8 +46,16 @@ void Filter::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void Filter::preUpdateUI(FilterUiInterface* ui, const PageInfo& pageInfo) {
-  m_optionsWidget->preUpdateUI(pageInfo.id());
-  ui->setOptionsWidget(m_optionsWidget.get(), ui->KEEP_OWNERSHIP);
+  OptionsWidget* const widget = ensureOptionsWidget();
+  widget->preUpdateUI(pageInfo.id());
+  ui->setOptionsWidget(widget, ui->KEEP_OWNERSHIP);
+}
+
+OptionsWidget* Filter::ensureOptionsWidget() {
+  if (!m_optionsWidget) {
+    m_optionsWidget.reset(new OptionsWidget(m_settings, m_pages, m_pageSelectionAccessor));
+  }
+  return m_optionsWidget.get();
 }
 
 QDomElement Filter::saveSettings(const ProjectWriter& writer, QDomDocument& doc) const {

@@ -25,6 +25,9 @@ class DefaultParamsProvider {
 
   void setParams(std::unique_ptr<DefaultParams> params, const QString& name);
 
+  /** Updates the active profile's deskew auto-oblique default. */
+  void setDeskewAutoOblique(bool enabled);
+
  private:
   QString m_profileName;
   std::unique_ptr<DefaultParams> m_params;

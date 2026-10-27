@@ -12,13 +12,13 @@
 #include "FilterResult.h"
 #include "NonCopyable.h"
 #include "PageOrderOption.h"
+#include "PageSelectionAccessor.h"
 #include "PageView.h"
 #include "SafeDeletingQObjectPtr.h"
 
 class ImageId;
 class PageInfo;
 class ProjectPages;
-class PageSelectionAccessor;
 class OrthogonalRotation;
 
 namespace deskew {
@@ -76,10 +76,13 @@ class Filter : public AbstractFilter {
   void selectPageOrder(int option) override;
 
  private:
+  OptionsWidget* ensureOptionsWidget();
+
   void writeImageSettings(QDomDocument& doc, QDomElement& filterEl, const ImageId& imageId, int numericId) const;
 
   std::shared_ptr<ProjectPages> m_pages;
   std::shared_ptr<Settings> m_settings;
+  PageSelectionAccessor m_pageSelectionAccessor;
   SafeDeletingQObjectPtr<OptionsWidget> m_optionsWidget;
   std::vector<PageOrderOption> m_pageOrderOptions;
   int m_selectedPageOrder;

@@ -8,7 +8,6 @@
 #include <ImageFileInfo.h>
 #include <ImageMetadata.h>
 #include <ImageMetadataLoader.h>
-#include <LoadFileTask.h>
 #include <PageInfo.h>
 #include <PageSelectionAccessor.h>
 #include <PageSelectionProvider.h>
@@ -16,14 +15,9 @@
 #include <ProjectReader.h>
 #include <ProjectWriter.h>
 #include <SelectedPage.h>
+#include <StageChain.h>
 #include <StageSequence.h>
 #include <ThumbnailPixmapCache.h>
-#include <filters/deskew/Task.h>
-#include <filters/fix_orientation/Task.h>
-#include <filters/output/Task.h>
-#include <filters/page_layout/Task.h>
-#include <filters/page_split/Task.h>
-#include <filters/select_content/Task.h>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -242,45 +236,12 @@ void PipelineSession::configure(const FilterRange& range) {
   adapter.apply(range);
 }
 
-std::shared_ptr<BackgroundTask> PipelineSession::createCompositeTask(const PageInfo& page,
-                                                                    const FilterRange& range) {
+BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog& log) {
   // range.start cannot shorten the chain: the CLI always begins at LoadFileTask
   // and has no cached stage inputs to resume from. It only limits which filters
   // receive the request's overrides.
-  const int lastFilterIdx = range.end;
-  const bool batch = true;
-  const bool debug = false;
+  const StageChain chain(m_stages, StageChain::Deps{m_thumbnailCache, m_pages, m_outFileNameGen, true, false});
 
-  std::shared_ptr<fix_orientation::Task> fixOrientationTask;
-  std::shared_ptr<page_split::Task> pageSplitTask;
-  std::shared_ptr<deskew::Task> deskewTask;
-  std::shared_ptr<select_content::Task> selectContentTask;
-  std::shared_ptr<page_layout::Task> pageLayoutTask;
-  std::shared_ptr<output::Task> outputTask;
-
-  if (lastFilterIdx >= m_stages->outputFilterIdx()) {
-    outputTask = m_stages->outputFilter()->createTask(page.id(), m_thumbnailCache, m_outFileNameGen, batch, debug);
-  }
-  if (lastFilterIdx >= m_stages->pageLayoutFilterIdx()) {
-    pageLayoutTask = m_stages->pageLayoutFilter()->createTask(page.id(), outputTask, batch, debug);
-  }
-  if (lastFilterIdx >= m_stages->selectContentFilterIdx()) {
-    selectContentTask = m_stages->selectContentFilter()->createTask(page.id(), pageLayoutTask, batch, debug);
-  }
-  if (lastFilterIdx >= m_stages->deskewFilterIdx()) {
-    deskewTask = m_stages->deskewFilter()->createTask(page.id(), selectContentTask, batch, debug);
-  }
-  if (lastFilterIdx >= m_stages->pageSplitFilterIdx()) {
-    pageSplitTask = m_stages->pageSplitFilter()->createTask(page, deskewTask, batch, debug);
-  }
-  if (lastFilterIdx >= m_stages->fixOrientationFilterIdx()) {
-    fixOrientationTask = m_stages->fixOrientationFilter()->createTask(page.id(), pageSplitTask, batch);
-  }
-  assert(fixOrientationTask);
-  return std::make_shared<LoadFileTask>(BackgroundTask::BATCH, page, m_thumbnailCache, m_pages, fixOrientationTask);
-}
-
-BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog& log) {
   BatchReport report;
   report.pages.reserve(m_pageSequence.numPages());
 
@@ -297,7 +258,7 @@ BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog&
     outcome.index = static_cast<int>(i);
     outcome.inputFile = inputFile;
 
-    const std::shared_ptr<BackgroundTask> task = createCompositeTask(page, range);
+    const std::shared_ptr<BackgroundTask> task = chain.taskFor(page, range.end);
     try {
       (*task)();
       outcome.ok = true;

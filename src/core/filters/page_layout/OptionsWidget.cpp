@@ -13,8 +13,8 @@
 #include <utility>
 
 #include "../../Utils.h"
-#include "ApplyDialog.h"
 #include "ApplyMarginsDialog.h"
+#include "PageApplyDialog.h"
 #include "ProjectPages.h"
 #include "Settings.h"
 
@@ -322,10 +322,10 @@ void OptionsWidget::showApplyMarginsDialog() {
 }
 
 void OptionsWidget::showApplyAlignmentDialog() {
-  auto* dialog = new ApplyDialog(this, m_pageId, m_pageSelectionAccessor);
+  auto* dialog = new PageApplyDialog(this, m_pageId, m_pageSelectionAccessor, tr("Apply Alignment"));
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  dialog->setWindowTitle(tr("Apply Alignment"));
-  connect(dialog, SIGNAL(accepted(const std::set<PageId>&)), this, SLOT(applyAlignment(const std::set<PageId>&)));
+  connect(dialog, &PageApplyDialog::submitted, this,
+          [this, dialog]() { applyAlignment(dialog->pages()); });
   dialog->show();
 }
 

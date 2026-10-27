@@ -3,6 +3,7 @@
 
 #include "tst_cli_qt.h"
 #include "tst_core_qt.h"
+#include "tst_page_apply_dialog.h"
 #include "tst_ux_qt.h"
 
 #include <QApplication>
@@ -20,6 +21,9 @@ int main(int argc, char* argv[]) {
 
   TestCliQt tc3;
   status |= QTest::qExec(&tc3, argc, argv);
+
+  TestPageApplyDialog tc4;
+  status |= QTest::qExec(&tc4, argc, argv);
 
   return status;
 }

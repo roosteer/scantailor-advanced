@@ -11,8 +11,8 @@
 #include <cassert>
 #include <utility>
 
-#include "ApplyDialog.h"
 #include "Filter.h"
+#include "PageApplyDialog.h"
 #include "ProjectPages.h"
 #include "Settings.h"
 
@@ -64,11 +64,16 @@ void OptionsWidget::resetRotation() {
 }
 
 void OptionsWidget::showApplyToDialog() {
-  auto* dialog = new ApplyDialog(this, m_pageId, m_pageSelectionAccessor);
+  auto* dialog = new PageApplyDialog(this, m_pageId, m_pageSelectionAccessor, tr("Fix Orientation"));
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  connect(dialog, SIGNAL(appliedTo(const std::set<PageId>&)), this, SLOT(appliedTo(const std::set<PageId>&)));
-  connect(dialog, SIGNAL(appliedToAllPages(const std::set<PageId>&)), this,
-          SLOT(appliedToAllPages(const std::set<PageId>&)));
+  connect(dialog, &PageApplyDialog::submitted, this, [this, dialog]() {
+    const std::set<PageId> pages = dialog->pages();
+    if (dialog->allPages()) {
+      appliedToAllPages(pages);
+    } else {
+      appliedTo(pages);
+    }
+  });
   dialog->show();
 }
 

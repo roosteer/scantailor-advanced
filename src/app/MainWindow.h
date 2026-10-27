@@ -26,6 +26,7 @@
 #include "PageRange.h"
 #include "PageView.h"
 #include "SelectedPage.h"
+#include "StageChain.h"
 #include "StatusBarPanel.h"
 #include "ThumbnailSequence.h"
 #include "ui_MainWindow.h"
@@ -287,9 +288,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void eraseOutputFiles(const std::set<PageId>& pages);
 
-  BackgroundTaskPtr createCompositeTask(const PageInfo& page, int lastFilterIdx, bool batch, bool debug);
-
-  std::shared_ptr<CompositeCacheDrivenTask> createCompositeCacheDrivenTask(int lastFilterIdx);
+  StageChain::Deps chainDeps(bool batch = false, bool debug = false) const;
 
   void createBatchProcessingWidget();
 

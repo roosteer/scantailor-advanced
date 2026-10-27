@@ -75,6 +75,14 @@ static OrthogonalRotation degreesToOrthogonalRotation(int degrees) {
   return rot;
 }
 
+std::set<PageId> FilterConfigAdapter::selectedPageIds() const {
+  std::set<PageId> pageIds;
+  for (const PageInfo& page : m_pages) {
+    pageIds.insert(page.id());
+  }
+  return pageIds;
+}
+
 void FilterConfigAdapter::applyFixOrientation() {
   if (!m_request.orientation) {
     return;
@@ -82,12 +90,7 @@ void FilterConfigAdapter::applyFixOrientation() {
   auto* filter = m_stages->fixOrientationFilter().get();
   auto settings = filter->getSettings();
   const OrthogonalRotation rot = degreesToOrthogonalRotation(*m_request.orientation);
-
-  std::set<PageId> pageIds;
-  for (const PageInfo& page : m_pages) {
-    pageIds.insert(page.id());
-  }
-  settings->applyRotation(pageIds, rot);
+  settings->applyRotation(selectedPageIds(), rot);
 }
 
 void FilterConfigAdapter::applyPageSplit() {
@@ -136,10 +139,10 @@ void FilterConfigAdapter::applySelectContent() {
     const QRectF rect(box.left, box.top, box.right - box.left, box.bottom - box.top);
     const QSizeF sizeMm(rect.width(), rect.height());
     const QRectF pageRect = rect;  // Same as content for manual
-    for (const PageInfo& page : m_pages) {
+    for (const PageId& pageId : selectedPageIds()) {
       select_content::Params params(rect, sizeMm, pageRect, select_content::Dependencies(), MODE_MANUAL,
                                     MODE_MANUAL, false);
-      settings->setPageParams(page.id(), params);
+      settings->setPageParams(pageId, params);
     }
   }
 }
@@ -176,6 +179,12 @@ void FilterConfigAdapter::applyPageLayout() {
 }
 
 void FilterConfigAdapter::applyOutput() {
+  if (!m_request.outputDpi && !m_request.colorMode && !m_request.thresholdAdjustment
+      && !m_request.equalizeIllumination && !m_request.despeckleLevel && !m_request.dewarpingMode
+      && !m_request.depthPerception) {
+    return;
+  }
+
   auto* filter = m_stages->outputFilter().get();
   auto settings = filter->getSettings();
 

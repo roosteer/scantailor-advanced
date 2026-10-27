@@ -12,11 +12,11 @@
 #include "FillZonePropFactory.h"
 #include "FilterResult.h"
 #include "NonCopyable.h"
+#include "PageSelectionAccessor.h"
 #include "PageView.h"
 #include "PictureZonePropFactory.h"
 #include "SafeDeletingQObjectPtr.h"
 
-class PageSelectionAccessor;
 class ThumbnailPixmapCache;
 class OutputFileNameGenerator;
 class QString;
@@ -68,9 +68,12 @@ class Filter : public AbstractFilter {
   void selectPageOrder(int option) override;
 
  private:
+  OptionsWidget* ensureOptionsWidget();
+
   void writePageSettings(QDomDocument& doc, QDomElement& filterEl, const PageId& pageId, int numericId) const;
 
   std::shared_ptr<Settings> m_settings;
+  PageSelectionAccessor m_pageSelectionAccessor;
   SafeDeletingQObjectPtr<OptionsWidget> m_optionsWidget;
   PictureZonePropFactory m_pictureZonePropFactory;
   FillZonePropFactory m_fillZonePropFactory;

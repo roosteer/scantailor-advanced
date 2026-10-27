@@ -22,9 +22,9 @@
 
 namespace fix_orientation {
 Filter::Filter(const PageSelectionAccessor& pageSelectionAccessor)
-    : m_settings(std::make_shared<Settings>()), m_imageSettings(std::make_shared<ImageSettings>()) {
-  m_optionsWidget.reset(new OptionsWidget(m_settings, pageSelectionAccessor));
-}
+    : m_settings(std::make_shared<Settings>()),
+      m_imageSettings(std::make_shared<ImageSettings>()),
+      m_pageSelectionAccessor(pageSelectionAccessor) {}
 
 Filter::~Filter() = default;
 
@@ -42,11 +42,17 @@ void Filter::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void Filter::preUpdateUI(FilterUiInterface* ui, const PageInfo& pageInfo) {
-  if (m_optionsWidget.get()) {
-    const OrthogonalRotation rotation(m_settings->getRotationFor(pageInfo.id().imageId()));
-    m_optionsWidget->preUpdateUI(pageInfo, rotation);
-    ui->setOptionsWidget(m_optionsWidget.get(), ui->KEEP_OWNERSHIP);
+  OptionsWidget* const widget = ensureOptionsWidget();
+  const OrthogonalRotation rotation(m_settings->getRotationFor(pageInfo.id().imageId()));
+  widget->preUpdateUI(pageInfo, rotation);
+  ui->setOptionsWidget(widget, ui->KEEP_OWNERSHIP);
+}
+
+OptionsWidget* Filter::ensureOptionsWidget() {
+  if (!m_optionsWidget) {
+    m_optionsWidget.reset(new OptionsWidget(m_settings, m_pageSelectionAccessor));
   }
+  return m_optionsWidget.get();
 }
 
 QDomElement Filter::saveSettings(const ProjectWriter& writer, QDomDocument& doc) const {

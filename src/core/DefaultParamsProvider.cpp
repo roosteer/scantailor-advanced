@@ -55,3 +55,12 @@ void DefaultParamsProvider::setParams(std::unique_ptr<DefaultParams> params, con
   m_params = std::move(params);
   m_profileName = name;
 }
+
+void DefaultParamsProvider::setDeskewAutoOblique(const bool enabled) {
+  DefaultParams::DeskewParams deskewParams(m_params->getDeskewParams());
+  deskewParams.setAutoOblique(enabled);
+
+  auto updated = std::make_unique<DefaultParams>(*m_params);
+  updated->setDeskewParams(deskewParams);
+  setParams(std::move(updated), m_profileName);
+}

@@ -8,7 +8,7 @@
 #include <core/DefaultParams.h>
 #include <core/DefaultParamsProvider.h>
 
-#include "ApplyDialog.h"
+#include "PageApplyDialog.h"
 #include "Params.h"
 #include "Settings.h"
 
@@ -28,16 +28,6 @@ Params mergeParamsForApply(const std::unique_ptr<Params>& existing,
                 applyOblique ? cur.effectiveObliqueAngle() : existing->obliqueAngle(), deps,
                 applyDeskew ? cur.mode() : existing->mode(),
                 applyOblique ? cur.obliqueMode() : existing->obliqueMode());
-}
-
-void setDefaultAutoOblique(const bool enabled) {
-  DefaultParamsProvider& provider = DefaultParamsProvider::getInstance();
-  const DefaultParams& current = provider.getParams();
-  auto updated = std::make_unique<DefaultParams>(current);
-  DefaultParams::DeskewParams deskewParams(current.getDeskewParams());
-  deskewParams.setAutoOblique(enabled);
-  updated->setDeskewParams(deskewParams);
-  provider.setParams(std::move(updated), provider.getProfileName());
 }
 
 }  // namespace
@@ -64,11 +54,18 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings, const PageSelec
 OptionsWidget::~OptionsWidget() = default;
 
 void OptionsWidget::showDeskewDialog() {
-  auto* dialog = new ApplyDialog(this, m_pageId, m_pageSelectionAccessor);
+  auto* dialog = new PageApplyDialog(this, m_pageId, m_pageSelectionAccessor, tr("Apply Deskew"),
+                                     {{tr("Deskew angle and mode"), true}, {tr("Oblique angle and mode"), true}});
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  dialog->setWindowTitle(tr("Apply Deskew"));
-  connect(dialog, &ApplyDialog::appliedTo, this, &OptionsWidget::appliedTo);
-  connect(dialog, &ApplyDialog::appliedToAllPages, this, &OptionsWidget::appliedToAllPages);
+  connect(dialog, &PageApplyDialog::submitted, this, [this, dialog]() {
+    const bool applyDeskew = dialog->isOptionChecked(0);
+    const bool applyOblique = dialog->isOptionChecked(1);
+    if (dialog->allPages()) {
+      appliedToAllPages(dialog->pages(), applyDeskew, applyOblique);
+    } else {
+      appliedTo(dialog->pages(), applyDeskew, applyOblique);
+    }
+  });
   dialog->show();
 }
 
@@ -271,7 +268,7 @@ void OptionsWidget::topEdgeToggled(bool checked) {
 }
 
 void OptionsWidget::autoObliqueCheckBoxToggled(const bool checked) {
-  setDefaultAutoOblique(checked);
+  DefaultParamsProvider::getInstance().setDeskewAutoOblique(checked);
   m_settings->setPendingAutoOblique(m_pageId, checked);
   if (autoBtn->isChecked()) {
     m_settings->clearPageParams(m_pageId);

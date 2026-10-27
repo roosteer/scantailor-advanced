@@ -10,12 +10,12 @@
 #include "AbstractFilter.h"
 #include "FilterResult.h"
 #include "NonCopyable.h"
+#include "PageSelectionAccessor.h"
 #include "PageView.h"
 #include "SafeDeletingQObjectPtr.h"
 #include "Settings.h"
 
 class QString;
-class PageSelectionAccessor;
 class ImageSettings;
 
 namespace select_content {
@@ -69,6 +69,8 @@ class Filter : public AbstractFilter {
   void selectPageOrder(int option) override;
 
  private:
+  OptionsWidget* ensureOptionsWidget();
+
   void writeParams(QDomDocument& doc, QDomElement& filterEl, const PageId& pageId, int numericId) const;
 
   void saveImageSettings(const ProjectWriter& writer, QDomDocument& doc, QDomElement& filterEl) const;
@@ -79,6 +81,7 @@ class Filter : public AbstractFilter {
 
   std::shared_ptr<Settings> m_settings;
   std::shared_ptr<ImageSettings> m_imageSettings;
+  PageSelectionAccessor m_pageSelectionAccessor;
   SafeDeletingQObjectPtr<OptionsWidget> m_optionsWidget;
   std::vector<PageOrderOption> m_pageOrderOptions;
   int m_selectedPageOrder;

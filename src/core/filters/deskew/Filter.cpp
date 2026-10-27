@@ -22,9 +22,8 @@ namespace deskew {
 Filter::Filter(const PageSelectionAccessor& pageSelectionAccessor)
     : m_settings(std::make_shared<Settings>()),
       m_imageSettings(std::make_shared<ImageSettings>()),
+      m_pageSelectionAccessor(pageSelectionAccessor),
       m_selectedPageOrder(0) {
-  m_optionsWidget.reset(new OptionsWidget(m_settings, pageSelectionAccessor));
-
   const PageOrderOption::ProviderPtr defaultOrder;
   const auto orderByDeviation = std::make_shared<OrderByDeviationProvider>(m_settings->deviationProvider());
   m_pageOrderOptions.emplace_back(tr("Natural order"), defaultOrder);
@@ -47,8 +46,16 @@ void Filter::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void Filter::preUpdateUI(FilterUiInterface* const ui, const PageInfo& pageInfo) {
-  m_optionsWidget->preUpdateUI(pageInfo.id());
-  ui->setOptionsWidget(m_optionsWidget.get(), ui->KEEP_OWNERSHIP);
+  OptionsWidget* const widget = ensureOptionsWidget();
+  widget->preUpdateUI(pageInfo.id());
+  ui->setOptionsWidget(widget, ui->KEEP_OWNERSHIP);
+}
+
+OptionsWidget* Filter::ensureOptionsWidget() {
+  if (!m_optionsWidget) {
+    m_optionsWidget.reset(new OptionsWidget(m_settings, m_pageSelectionAccessor));
+  }
+  return m_optionsWidget.get();
 }
 
 QDomElement Filter::saveSettings(const ProjectWriter& writer, QDomDocument& doc) const {

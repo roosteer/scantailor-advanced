@@ -32,6 +32,7 @@
 #include "FilterUiInterface.h"
 #include "ImageView.h"
 #include "ObliqueFinder.h"
+#include "ObliquePolicy.h"
 #include "OptionsWidget.h"
 #include "TaskStatus.h"
 #include "filters/select_content/Task.h"
@@ -120,14 +121,13 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
 
     status.throwIfCancelled();
 
-    bool autoObliqueEnabled = false;
-    if (priorParamsBeforeRecompute) {
-      autoObliqueEnabled = priorParamsBeforeRecompute->autoOblique();
-    } else if (const auto pending = m_settings->takePendingAutoOblique(m_pageId)) {
-      autoObliqueEnabled = *pending;
-    } else {
-      autoObliqueEnabled = DefaultParamsProvider::getInstance().getParams().getDeskewParams().isAutoOblique();
-    }
+    // takePendingAutoOblique consumes the request, so it must stay inside the
+    // branch that handles a page without params.
+    const bool autoObliqueEnabled
+        = priorParamsBeforeRecompute
+              ? priorParamsBeforeRecompute->autoOblique()
+              : resolveAutoOblique(m_settings->takePendingAutoOblique(m_pageId),
+                                   DefaultParamsProvider::getInstance().getParams().getDeskewParams().isAutoOblique());
 
     double preservedObliqueDeg = 0.;
     if (priorParamsBeforeRecompute && !priorParamsBeforeRecompute->autoOblique()) {
@@ -316,6 +316,10 @@ void Task::UiUpdater::updateUI(FilterUiInterface* ui) {
   }
 
   OptionsWidget* const optWidget = m_filter->optionsWidget();
+  if (!optWidget) {
+    // The options panel is built on first UI use, so a headless run has none to drive.
+    return;
+  }
   optWidget->postUpdateUI(m_uiData);
   ui->setOptionsWidget(optWidget, ui->KEEP_OWNERSHIP);
 

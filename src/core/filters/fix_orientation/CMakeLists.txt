@@ -1,7 +1,6 @@
 set(CMAKE_AUTOUIC ON)
 
 set(ui_files
-    ApplyDialog.ui
     OptionsWidget.ui)
 
 set(sources
@@ -10,7 +9,6 @@ set(sources
     ImageView.cpp ImageView.h
     Filter.cpp Filter.h
     OptionsWidget.cpp OptionsWidget.h
-    ApplyDialog.cpp ApplyDialog.h
     Settings.cpp Settings.h
     Task.cpp Task.h
     CacheDrivenTask.cpp CacheDrivenTask.h

@@ -1,8 +1,10 @@
 set(sources
     main.cpp
+    TestConfigPaths.cpp
     TestContentSpanFinder.cpp
     TestDeskewParams.cpp
     TestObliqueFinder.cpp
+    TestObliquePolicy.cpp
     TestImageId.cpp
     TestMargins.cpp
     TestPageId.cpp
@@ -10,6 +12,7 @@ set(sources
     TestPageSequence.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
+    TestStageChain.cpp
     TestUnits.cpp)
 
 add_executable(core_tests ${sources})

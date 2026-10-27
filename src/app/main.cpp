@@ -5,6 +5,7 @@
 #include <core/Application.h>
 #include <core/ApplicationSettings.h>
 #include <core/ColorSchemeFactory.h>
+#include <core/ConfigPaths.h>
 #include <core/ColorSchemeManager.h>
 #include <core/FontIconPack.h>
 #include <core/IconProvider.h>
@@ -44,10 +45,7 @@ int main(int argc, char* argv[]) {
   Application::setApplicationName(APPLICATION_NAME);
   Application::setOrganizationName(ORGANIZATION_NAME);
 
-  QSettings::setDefaultFormat(QSettings::IniFormat);
-  if (app.isPortableVersion()) {
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, app.getPortableConfigPath());
-  }
+  ConfigPaths::configureQSettings();
   QSettings settings;
 
   app.installLanguage(ApplicationSettings::getInstance().getLanguage());

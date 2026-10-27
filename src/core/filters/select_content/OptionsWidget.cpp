@@ -8,7 +8,7 @@
 #include <boost/bind/bind.hpp>
 #include <utility>
 
-#include "ApplyDialog.h"
+#include "PageApplyDialog.h"
 #include "Settings.h"
 
 namespace select_content {
@@ -191,10 +191,15 @@ void OptionsWidget::updateDependenciesIfNecessary() {
 }
 
 void OptionsWidget::showApplyToDialog() {
-  auto* dialog = new ApplyDialog(this, m_pageId, m_pageSelectionAccessor);
+  auto* dialog = new PageApplyDialog(
+      this, m_pageId, m_pageSelectionAccessor, tr("Select Content"),
+      {{tr("Apply page box"), false}, {tr("Apply content box"), true}},
+      tr("If content is cropped incorrectly, check the Split Pages step "
+         "(Manual + Apply cut often works better with columns)."));
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  connect(dialog, SIGNAL(applySelection(const std::set<PageId>&, bool, bool)), this,
-          SLOT(applySelection(const std::set<PageId>&, bool, bool)));
+  connect(dialog, &PageApplyDialog::submitted, this, [this, dialog]() {
+    applySelection(dialog->pages(), dialog->isOptionChecked(1), dialog->isOptionChecked(0));
+  });
   dialog->show();
 }
 

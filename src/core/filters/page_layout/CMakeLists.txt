@@ -1,7 +1,6 @@
 set(CMAKE_AUTOUIC ON)
 
 set(ui_files
-    ApplyDialog.ui
     ApplyMarginsDialog.ui
     OptionsWidget.ui)
 
@@ -15,7 +14,6 @@ set(sources
     Params.cpp Params.h
     Settings.cpp Settings.h
     Thumbnail.cpp Thumbnail.h
-    ApplyDialog.cpp ApplyDialog.h
     ApplyMarginsDialog.cpp ApplyMarginsDialog.h
     Alignment.cpp Alignment.h
     OrderByWidthProvider.cpp OrderByWidthProvider.h

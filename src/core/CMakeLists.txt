@@ -18,6 +18,7 @@ set(common_sources
     OutOfMemoryHandler.cpp OutOfMemoryHandler.h
     PageSelectionAccessor.cpp PageSelectionAccessor.h
     PageSelectionProvider.h
+    PageApplyDialog.cpp PageApplyDialog.h
     ContentSpanFinder.cpp ContentSpanFinder.h
     ImageTransformation.cpp ImageTransformation.h
     ImagePixmapUnion.h
@@ -41,6 +42,8 @@ set(common_sources
     ProcessingTaskQueue.cpp ProcessingTaskQueue.h
     PageSequence.cpp PageSequence.h
     StageSequence.cpp StageSequence.h
+    ConfigPaths.cpp ConfigPaths.h
+    StageChain.cpp StageChain.h
     ProjectPages.cpp ProjectPages.h
     FilterData.cpp FilterData.h
     ImageMetadataLoader.cpp ImageMetadataLoader.h
