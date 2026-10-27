@@ -4,21 +4,14 @@
 #ifndef SCANTAILOR_APP_CLI_FILTERCONFIGADAPTER_H_
 #define SCANTAILOR_APP_CLI_FILTERCONFIGADAPTER_H_
 
-#include <QString>
 #include <memory>
 
 #include "CliRequest.h"
+#include "FilterRange.h"
 #include "NonCopyable.h"
 
 class PageSequence;
 class StageSequence;
-
-namespace page_split {
-class Filter;
-}
-namespace output {
-class Filter;
-}
 
 namespace cli {
 
@@ -34,16 +27,16 @@ class FilterConfigAdapter {
                       std::shared_ptr<StageSequence> stages,
                       const PageSequence& pages);
 
-  /** Apply CLI settings to all filters in the range [startFilter, endFilter]. */
-  void apply(int startFilter, int endFilter, QString& errorMsg);
+  /** Apply the request's settings to every filter the range covers. */
+  void apply(const FilterRange& range);
 
  private:
-  void applyFixOrientation(QString& errorMsg);
-  void applyPageSplit(QString& errorMsg);
-  void applyDeskew(QString& errorMsg);
-  void applySelectContent(QString& errorMsg);
-  void applyPageLayout(QString& errorMsg);
-  void applyOutput(QString& errorMsg);
+  void applyFixOrientation();
+  void applyPageSplit();
+  void applyDeskew();
+  void applySelectContent();
+  void applyPageLayout();
+  void applyOutput();
 
   const CliRequest& m_request;
   std::shared_ptr<StageSequence> m_stages;

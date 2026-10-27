@@ -16,8 +16,23 @@ The CLI SHALL accept one or more image file paths and an output directory as pos
 - **THEN** the CLI SHALL create it before processing
 
 #### Scenario: No display server available
-- **WHEN** the CLI runs in an environment without X11 or Wayland (e.g., Docker container, SSH session without forwarding)
-- **THEN** the CLI SHALL start and process images successfully without errors related to missing display
+- **WHEN** the CLI runs without `QT_QPA_PLATFORM` in an environment without X11 or Wayland (e.g., Docker container, SSH session without forwarding)
+- **THEN** the CLI selects the `offscreen` platform plugin and processes images successfully without errors related to a missing display
+
+### Requirement: Flag grammar
+A flag carrying a value SHALL take it attached with `=`, as `--flag=value`. A space-separated value is not accepted.
+
+#### Scenario: Value attached with equals
+- **WHEN** user runs with `--output-dpi=300`
+- **THEN** the value 300 is applied
+
+#### Scenario: Value passed to a boolean flag
+- **WHEN** user runs with `--verbose=1`
+- **THEN** the CLI SHALL exit with code 2 (INVALID_INPUT) and report that the flag takes no value
+
+#### Scenario: Value omitted for a value flag
+- **WHEN** user runs with `--output-dpi`
+- **THEN** the CLI SHALL exit with code 2 (INVALID_INPUT) and report that the flag requires a value
 
 ### Requirement: Configure processing via command-line flags
 The CLI SHALL support flags to override default filter settings for all pages being processed.
@@ -42,6 +57,14 @@ The CLI SHALL support flags to override default filter settings for all pages be
 - **WHEN** user runs with `--layout=1`
 - **THEN** all pages are treated as single-page layouts
 
+#### Scenario: Adjust the binarization threshold
+- **WHEN** user runs with `--threshold=20`
+- **THEN** the threshold adjustment of every page becomes 20 (the default adjustment is 0; the value is a delta, not an absolute threshold)
+
+#### Scenario: Equalize illumination
+- **WHEN** user runs with `--equalize-illumination`
+- **THEN** normalization is enabled for both the black-and-white and the color settings of every page
+
 #### Scenario: Unknown flag
 - **WHEN** user passes an unrecognized flag `--foo=bar`
 - **THEN** the CLI SHALL exit with code 2 (INVALID_INPUT) and print an error message to stderr listing the unknown flag
@@ -51,11 +74,15 @@ The CLI SHALL support flags to override default filter settings for all pages be
 - **THEN** the CLI SHALL exit with code 2 (INVALID_INPUT) and print an error message listing valid values
 
 ### Requirement: Filter selection
-The CLI SHALL support `--start-filter` and `--end-filter` flags to restrict which filters are executed.
+The CLI SHALL support `--start-filter` and `--end-filter` flags to restrict which filters receive CLI overrides and where processing stops.
 
-#### Scenario: Start from a specific filter
+#### Scenario: Start overrides from a specific filter
 - **WHEN** user runs with `--start-filter=3`
-- **THEN** only filters from index 3 onward are executed (0-based: 0=fix_orientation, 1=page_split, 2=deskew, 3=select_content, 4=page_layout, 5=output)
+- **THEN** flags only configure filters from index 3 onward (0-based: 0=fix_orientation, 1=page_split, 2=deskew, 3=select_content, 4=page_layout, 5=output); earlier stages still run with their own settings, because the CLI has no cached stage outputs to resume from
+
+#### Scenario: Start after end
+- **WHEN** user runs with `--start-filter=4 --end-filter=3`
+- **THEN** the CLI SHALL exit with code 2 (INVALID_INPUT)
 
 #### Scenario: End at a specific filter
 - **WHEN** user runs with `--end-filter=4`

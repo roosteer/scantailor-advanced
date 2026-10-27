@@ -6,8 +6,8 @@
 
 #include <QString>
 #include <QStringList>
+#include <optional>
 
-#include "ExitCode.h"
 #include "filters/output/ColorParams.h"
 #include "filters/output/DespeckleLevel.h"
 #include "filters/output/DewarpingOptions.h"
@@ -15,12 +15,29 @@
 
 namespace cli {
 
+enum class OutputFormat { TEXT, JSON };
+
+enum class DeskewMode { AUTO, MANUAL, OFF };
+
+enum class ContentDetection { AUTO, MANUAL, OFF };
+
+enum class Alignment { CENTER, ORIGINAL, AUTO };
+
+/** A rectangle in millimetres, as printed on the page. */
+struct MmRect {
+  double left = 0;
+  double top = 0;
+  double right = 0;
+  double bottom = 0;
+};
+
 /**
- * Value-type DTO representing fully parsed CLI arguments.
- * All fields are set to defaults when not specified by the user.
+ * Fully parsed command line. Every option the user did not pass stays disengaged,
+ * so consumers ask "did the user say anything about this?" instead of comparing
+ * against a sentinel.
  */
 struct CliRequest {
-  /** Input image file paths (positional args). */
+  /** Input image file paths (positional arguments). */
   QStringList images;
 
   /** Path to a .ScanTailor project file. */
@@ -29,83 +46,41 @@ struct CliRequest {
   /** Output directory. */
   QString outputDir;
 
-  /** Path to save project after processing. */
+  /** Where to save the project after processing. */
   QString outputProjectFile;
 
-  /** Output mode: "default" or "json". */
-  QString outputMode;
+  OutputFormat outputFormat = OutputFormat::TEXT;
 
-  // --- Filter selection ---
-  int startFilter = -1;  // -1 = not set (default: 0)
-  int endFilter = -1;    // -1 = not set (default: 5)
-
-  // --- fix_orientation ---
-  /** Rotation in degrees: 0, 90, 180, 270. -1 = not set. */
-  int orientation = -1;
-
-  // --- page_split ---
-  page_split::LayoutType layoutType = page_split::AUTO_LAYOUT_TYPE;
-  bool layoutTypeSet = false;
-
-  // --- deskew ---
-  enum DeskewMode { DESKEW_AUTO, DESKEW_MANUAL, DESKEW_OFF };
-  DeskewMode deskewMode = DESKEW_AUTO;
-  bool deskewModeSet = false;
-  double deskewAngle = 0.0;     // manual deskew angle in degrees
-  bool deskewAngleSet = false;
-
-  // --- select_content ---
-  enum ContentDetection { CONTENT_AUTO, CONTENT_MANUAL, CONTENT_OFF };
-  ContentDetection contentDetection = CONTENT_AUTO;
-  bool contentDetectionSet = false;
-  /** Content box: left,top,right,bottom in mm. All -1 = not set. */
-  double contentBox[4] = {-1, -1, -1, -1};
-
-  // --- page_layout ---
-  /** Margins in mm: left, top, right, bottom. All -1 = not set. */
-  double margins[4] = {-1, -1, -1, -1};
-  enum Alignment { ALIGN_CENTER, ALIGN_ORIGINAL, ALIGN_AUTO };
-  Alignment alignment = ALIGN_CENTER;
-  bool alignmentSet = false;
-
-  // --- output ---
-  int outputDpi = -1;  // -1 = not set
-  output::ColorMode colorMode = output::BLACK_AND_WHITE;
-  bool colorModeSet = false;
-  int threshold = -1;  // -1 = not set (black/white threshold)
-  output::DespeckleLevel despeckleLevel = output::DESPECKLE_OFF;
-  bool despeckleLevelSet = false;
-  output::DewarpingMode dewarpingMode = output::OFF;
-  bool dewarpingModeSet = false;
-  double depthPerception = -1.0;  // -1 = not set
-  bool whiteMargins = false;
-  bool whiteMarginsSet = false;
-  bool equalizeIllumination = false;
-  bool equalizeIlluminationSet = false;
-  bool savitzkyGolaySmoothing = false;
-  bool savitzkyGolaySmoothingSet = false;
-  bool morphologicalSmoothing = false;
-  bool morphologicalSmoothingSet = false;
-
-  // --- Misc ---
-  bool help = false;
-  bool version = false;
   bool verbose = false;
   bool quiet = false;
+  bool help = false;
+  bool version = false;
 
-  /**
-   * Parse argv (excluding argv[0]) into a CliRequest.
-   * Returns the populated request and ExitCode::SUCCESS on success.
-   * On error, returns a partial request and the appropriate exit code.
-   */
-  static ExitCode parse(const QStringList& args, CliRequest& out, QString& errorMsg);
+  std::optional<int> startFilter;
+  std::optional<int> endFilter;
+
+  std::optional<int> orientation;
+  std::optional<page_split::LayoutType> layoutType;
+
+  std::optional<DeskewMode> deskewMode;
+  std::optional<double> deskewAngle;
+
+  std::optional<ContentDetection> contentDetection;
+  std::optional<MmRect> contentBox;
+
+  std::optional<MmRect> margins;
+  std::optional<Alignment> alignment;
+
+  std::optional<int> outputDpi;
+  std::optional<output::ColorMode> colorMode;
+  std::optional<int> thresholdAdjustment;
+  std::optional<output::DespeckleLevel> despeckleLevel;
+
+  std::optional<output::DewarpingMode> dewarpingMode;
+  std::optional<double> depthPerception;
+
+  bool equalizeIllumination = false;
 };
-
-/** Print usage help to stdout. */
-void printHelp();
-
-/** Print version info to stdout. */
-void printVersion();
 
 }  // namespace cli
 

@@ -4,6 +4,8 @@
 #ifndef SCANTAILOR_APP_CLI_EXITCODE_H_
 #define SCANTAILOR_APP_CLI_EXITCODE_H_
 
+#include <QString>
+
 namespace cli {
 
 /**
@@ -17,6 +19,14 @@ enum class ExitCode {
   FILTER_ERROR = 4,
   OUTPUT_ERROR = 5,
   INTERNAL_ERROR = 6
+};
+
+/** Error channel for CLI operations: SUCCESS/empty means "no error". */
+struct CliError {
+  ExitCode code = ExitCode::SUCCESS;
+  QString message;
+
+  bool ok() const { return code == ExitCode::SUCCESS; }
 };
 
 }  // namespace cli

@@ -62,6 +62,18 @@ O ejecutar cada suite por separado:
 
 Los tests de UX usan `QApplication` y pueden simular interacción (clic, teclado) sin abrir ventanas; sirven de base para ampliar con más widgets o diálogos.
 
+#### Tests de la CLI (`TestCliQt`)
+
+Enlazan la librería estática `app_cli_lib`, así que ejercitan la lógica de la CLI sin pantalla:
+
+- **parsesDefaults** / **parsesValueFlags**: valores por defecto y flags con valor (`--margins=1,2,3,4`).
+- **rejectsUnknownFlag** / **rejectsMalformedValues** / **rejectsConflictingOptions**: flags desconocidos, valores mal formados y combinaciones imposibles, todos con código 2.
+- **resolvesPositionals**: modo proyecto, modo imágenes y directorio de salida.
+- **flagTableIsWellFormed**: cada entrada de la tabla de flags es única, tiene handler y descripción, y se encuentra con `findFlagSpec()`.
+- **resolvesFilterRange**: validación de `--start-filter` / `--end-filter`.
+- **rendersReport** / **mapsExitCode**: esquema del informe JSON y código de salida asociado.
+
+
 ## Tests de UI/UX y caminos de uso
 
 Actualmente no hay tests automatizados de interfaz ni de flujos completos de uso. Para mejorar la cobertura de UX y caminos de uso se puede:

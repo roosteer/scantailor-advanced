@@ -32,19 +32,7 @@ FilterConfigAdapter::FilterConfigAdapter(const CliRequest& request,
                                          const PageSequence& pages)
     : m_request(request), m_stages(std::move(stages)), m_pages(pages) {}
 
-void FilterConfigAdapter::apply(int startFilter, int endFilter, QString& errorMsg) {
-  const int total = m_stages->count();
-  if (startFilter < 0) {
-    startFilter = 0;
-  }
-  if (endFilter < 0) {
-    endFilter = total - 1;
-  }
-  if (startFilter > endFilter || startFilter >= total) {
-    errorMsg = QString("Invalid filter range: %1..%2 (available: 0..%3)").arg(startFilter).arg(endFilter).arg(total - 1);
-    return;
-  }
-
+void FilterConfigAdapter::apply(const FilterRange& range) {
   const int fixOrientationIdx = m_stages->fixOrientationFilterIdx();
   const int pageSplitIdx = m_stages->pageSplitFilterIdx();
   const int deskewIdx = m_stages->deskewFilterIdx();
@@ -52,23 +40,23 @@ void FilterConfigAdapter::apply(int startFilter, int endFilter, QString& errorMs
   const int pageLayoutIdx = m_stages->pageLayoutFilterIdx();
   const int outputIdx = m_stages->outputFilterIdx();
 
-  if (fixOrientationIdx >= startFilter && fixOrientationIdx <= endFilter) {
-    applyFixOrientation(errorMsg);
+  if (fixOrientationIdx >= range.start && fixOrientationIdx <= range.end) {
+    applyFixOrientation();
   }
-  if (pageSplitIdx >= startFilter && pageSplitIdx <= endFilter) {
-    applyPageSplit(errorMsg);
+  if (pageSplitIdx >= range.start && pageSplitIdx <= range.end) {
+    applyPageSplit();
   }
-  if (deskewIdx >= startFilter && deskewIdx <= endFilter) {
-    applyDeskew(errorMsg);
+  if (deskewIdx >= range.start && deskewIdx <= range.end) {
+    applyDeskew();
   }
-  if (selectContentIdx >= startFilter && selectContentIdx <= endFilter) {
-    applySelectContent(errorMsg);
+  if (selectContentIdx >= range.start && selectContentIdx <= range.end) {
+    applySelectContent();
   }
-  if (pageLayoutIdx >= startFilter && pageLayoutIdx <= endFilter) {
-    applyPageLayout(errorMsg);
+  if (pageLayoutIdx >= range.start && pageLayoutIdx <= range.end) {
+    applyPageLayout();
   }
-  if (outputIdx >= startFilter && outputIdx <= endFilter) {
-    applyOutput(errorMsg);
+  if (outputIdx >= range.start && outputIdx <= range.end) {
+    applyOutput();
   }
 }
 
@@ -87,13 +75,13 @@ static OrthogonalRotation degreesToOrthogonalRotation(int degrees) {
   return rot;
 }
 
-void FilterConfigAdapter::applyFixOrientation(QString& /*errorMsg*/) {
-  if (m_request.orientation < 0) {
+void FilterConfigAdapter::applyFixOrientation() {
+  if (!m_request.orientation) {
     return;
   }
   auto* filter = m_stages->fixOrientationFilter().get();
   auto settings = filter->getSettings();
-  const OrthogonalRotation rot = degreesToOrthogonalRotation(m_request.orientation);
+  const OrthogonalRotation rot = degreesToOrthogonalRotation(*m_request.orientation);
 
   std::set<PageId> pageIds;
   for (const PageInfo& page : m_pages) {
@@ -102,87 +90,82 @@ void FilterConfigAdapter::applyFixOrientation(QString& /*errorMsg*/) {
   settings->applyRotation(pageIds, rot);
 }
 
-void FilterConfigAdapter::applyPageSplit(QString& /*errorMsg*/) {
-  if (!m_request.layoutTypeSet) {
+void FilterConfigAdapter::applyPageSplit() {
+  if (!m_request.layoutType) {
     return;
   }
   auto* filter = m_stages->pageSplitFilter().get();
   auto settings = filter->getSettings();
-  settings->setLayoutTypeForAllPages(m_request.layoutType);
+  settings->setLayoutTypeForAllPages(*m_request.layoutType);
 }
 
-void FilterConfigAdapter::applyDeskew(QString& /*errorMsg*/) {
-  if (!m_request.deskewModeSet && !m_request.deskewAngleSet) {
+void FilterConfigAdapter::applyDeskew() {
+  if (!m_request.deskewMode && !m_request.deskewAngle) {
     return;
   }
   auto* filter = m_stages->deskewFilter().get();
   auto settings = filter->getSettings();
 
-  if (m_request.deskewModeSet) {
-    settings->setAlgoContentBased(m_request.deskewMode == CliRequest::DESKEW_AUTO);
+  if (m_request.deskewMode) {
+    settings->setAlgoContentBased(*m_request.deskewMode == DeskewMode::AUTO);
   }
 
-  // If a specific angle is set and we're in manual mode, apply per-page.
-  if (m_request.deskewAngleSet && m_request.deskewMode == CliRequest::DESKEW_MANUAL) {
+  // A manual angle only means something in manual mode; the parser rejects the
+  // combination outright, so reaching here with an angle implies manual mode.
+  if (m_request.deskewAngle) {
     for (const PageInfo& page : m_pages) {
-      deskew::Params params(m_request.deskewAngle, deskew::Dependencies(), MODE_MANUAL);
+      deskew::Params params(*m_request.deskewAngle, deskew::Dependencies(), MODE_MANUAL);
       settings->setPageParams(page.id(), params);
     }
   }
 }
 
-void FilterConfigAdapter::applySelectContent(QString& /*errorMsg*/) {
+void FilterConfigAdapter::applySelectContent() {
   auto* filter = m_stages->selectContentFilter().get();
   auto settings = filter->getSettings();
 
-  if (m_request.contentDetectionSet) {
-    // Content detection mode is per-page, but we can set a global default
-    // by configuring the detection box size.
-    if (m_request.contentDetection == CliRequest::CONTENT_OFF) {
-      // Setting a very large detection box effectively disables content detection
-      settings->setPageDetectionBox(QSizeF(100000, 100000));
-      settings->setPageDetectionTolerance(0.0);
-    }
+  // Detection is per-page in the GUI. Turning it off globally is expressed as a
+  // detection box big enough to always contain the page.
+  if (m_request.contentDetection == ContentDetection::OFF) {
+    settings->setPageDetectionBox(QSizeF(100000, 100000));
+    settings->setPageDetectionTolerance(0.0);
   }
 
-  // Manual content box: set per-page params with the specific rect.
-  if (m_request.contentBox[0] >= 0) {
+  if (m_request.contentBox) {
+    const MmRect& box = *m_request.contentBox;
+    const QRectF rect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+    const QSizeF sizeMm(rect.width(), rect.height());
+    const QRectF pageRect = rect;  // Same as content for manual
     for (const PageInfo& page : m_pages) {
-      QRectF rect(m_request.contentBox[0], m_request.contentBox[1],
-                  m_request.contentBox[2] - m_request.contentBox[0],
-                  m_request.contentBox[3] - m_request.contentBox[1]);
-      QSizeF sizeMm(rect.width(), rect.height());
-      QRectF pageRect = rect;  // Same as content for manual
-      select_content::Params params(rect, sizeMm, pageRect, select_content::Dependencies(),
-                                    MODE_MANUAL, MODE_MANUAL, false);
+      select_content::Params params(rect, sizeMm, pageRect, select_content::Dependencies(), MODE_MANUAL,
+                                    MODE_MANUAL, false);
       settings->setPageParams(page.id(), params);
     }
   }
 }
 
-void FilterConfigAdapter::applyPageLayout(QString& /*errorMsg*/) {
+void FilterConfigAdapter::applyPageLayout() {
   auto* filter = m_stages->pageLayoutFilter().get();
   auto settings = filter->getSettings();
 
-  // Apply margins if set.
-  if (m_request.margins[0] >= 0) {
-    Margins margins(m_request.margins[0], m_request.margins[1], m_request.margins[2], m_request.margins[3]);
+  if (m_request.margins) {
+    const MmRect& box = *m_request.margins;
+    const Margins margins(box.left, box.top, box.right, box.bottom);
     for (const PageInfo& page : m_pages) {
       settings->setHardMarginsMM(page.id(), margins);
     }
   }
 
-  // Apply alignment if set.
-  if (m_request.alignmentSet) {
+  if (m_request.alignment) {
     page_layout::Alignment alignment;
-    switch (m_request.alignment) {
-      case CliRequest::ALIGN_CENTER:
+    switch (*m_request.alignment) {
+      case Alignment::CENTER:
         alignment = page_layout::Alignment(page_layout::Alignment::VCENTER, page_layout::Alignment::HCENTER);
         break;
-      case CliRequest::ALIGN_ORIGINAL:
+      case Alignment::ORIGINAL:
         alignment = page_layout::Alignment(page_layout::Alignment::VORIGINAL, page_layout::Alignment::HORIGINAL);
         break;
-      case CliRequest::ALIGN_AUTO:
+      case Alignment::AUTO:
         alignment = page_layout::Alignment(page_layout::Alignment::VAUTO, page_layout::Alignment::HAUTO);
         break;
     }
@@ -192,54 +175,63 @@ void FilterConfigAdapter::applyPageLayout(QString& /*errorMsg*/) {
   }
 }
 
-void FilterConfigAdapter::applyOutput(QString& /*errorMsg*/) {
+void FilterConfigAdapter::applyOutput() {
   auto* filter = m_stages->outputFilter().get();
   auto settings = filter->getSettings();
 
   for (const PageInfo& page : m_pages) {
     const PageId& pageId = page.id();
 
-    // Get current params (or defaults) and modify.
     output::Params params = settings->getParams(pageId);
 
-    if (m_request.outputDpi > 0) {
-      params.setOutputDpi(Dpi(m_request.outputDpi, m_request.outputDpi));
+    if (m_request.outputDpi) {
+      params.setOutputDpi(Dpi(*m_request.outputDpi, *m_request.outputDpi));
     }
 
-    if (m_request.colorModeSet) {
-      output::ColorParams cp = params.colorParams();
-      cp.setColorMode(m_request.colorMode);
-      params.setColorParams(cp);
+    // The three illumination-and-colour knobs all land in ColorParams, so they
+    // share one copy rather than reading and writing it back three times.
+    output::ColorParams colorParams = params.colorParams();
+    bool colorParamsChanged = false;
+
+    if (m_request.colorMode) {
+      colorParams.setColorMode(*m_request.colorMode);
+      colorParamsChanged = true;
     }
 
-    if (m_request.threshold >= 0) {
-      output::ColorParams cp = params.colorParams();
-      auto bwOpts = cp.blackWhiteOptions();
-      bwOpts.setThresholdAdjustment(m_request.threshold);
-      cp.setBlackWhiteOptions(bwOpts);
-      params.setColorParams(cp);
+    if (m_request.thresholdAdjustment) {
+      auto bwOptions = colorParams.blackWhiteOptions();
+      bwOptions.setThresholdAdjustment(*m_request.thresholdAdjustment);
+      colorParams.setBlackWhiteOptions(bwOptions);
+      colorParamsChanged = true;
     }
 
-    if (m_request.despeckleLevelSet) {
-      params.setDespeckleLevel(static_cast<double>(m_request.despeckleLevel));
+    if (m_request.equalizeIllumination) {
+      auto bwOptions = colorParams.blackWhiteOptions();
+      bwOptions.setNormalizeIllumination(true);
+      colorParams.setBlackWhiteOptions(bwOptions);
+
+      auto commonOptions = colorParams.colorCommonOptions();
+      commonOptions.setNormalizeIllumination(true);
+      colorParams.setColorCommonOptions(commonOptions);
+      colorParamsChanged = true;
     }
 
-    if (m_request.dewarpingModeSet) {
+    if (colorParamsChanged) {
+      params.setColorParams(colorParams);
+    }
+
+    if (m_request.despeckleLevel) {
+      params.setDespeckleLevel(static_cast<double>(*m_request.despeckleLevel));
+    }
+
+    if (m_request.dewarpingMode) {
       output::DewarpingOptions dewarpOpts = params.dewarpingOptions();
-      dewarpOpts.setDewarpingMode(m_request.dewarpingMode);
+      dewarpOpts.setDewarpingMode(*m_request.dewarpingMode);
       params.setDewarpingOptions(dewarpOpts);
     }
 
-    if (m_request.depthPerception > 0.0) {
-      params.setDepthPerception(output::DepthPerception(m_request.depthPerception));
-    }
-
-    if (m_request.whiteMarginsSet) {
-      output::ColorParams cp = params.colorParams();
-      auto bwOpts = cp.blackWhiteOptions();
-      bwOpts.setNormalizeIllumination(m_request.whiteMargins);
-      cp.setBlackWhiteOptions(bwOpts);
-      params.setColorParams(cp);
+    if (m_request.depthPerception) {
+      params.setDepthPerception(output::DepthPerception(*m_request.depthPerception));
     }
 
     settings->setParams(pageId, params);
