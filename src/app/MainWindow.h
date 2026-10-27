@@ -21,11 +21,10 @@
 #include "FilterResult.h"
 #include "FilterUiInterface.h"
 #include "NonCopyable.h"
-#include "OutputFileNameGenerator.h"
 #include "PageId.h"
 #include "PageRange.h"
 #include "PageView.h"
-#include "SelectedPage.h"
+#include "ProjectDocument.h"
 #include "StageChain.h"
 #include "StatusBarPanel.h"
 #include "ThumbnailSequence.h"
@@ -220,10 +219,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   std::shared_ptr<AbstractCommand<void>> relinkingDialogRequester() override;
 
-  void switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
-                          const QString& outDir,
-                          const QString& projectFilePath = QString(),
-                          const ProjectReader* projectReader = nullptr);
+  void switchToProject(std::shared_ptr<ProjectDocument> document,
+                       const QString& projectFilePath = QString());
 
   void updateThumbViewMinWidth();
 
@@ -276,8 +273,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void closeProjectWithoutSaving();
 
-  bool saveProjectWithFeedback(const QString& projectFile);
-
   void showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId& existing);
 
   void showRemovePagesDialog(const std::set<PageId>& pages);
@@ -291,8 +286,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   StageChain::Deps chainDeps(bool batch = false, bool debug = false) const;
 
   void createBatchProcessingWidget();
-
-  void updateDisambiguationRecords(const PageSequence& pages);
 
   void performRelinking(const std::shared_ptr<AbstractRelinker>& relinker);
 
@@ -313,10 +306,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void setupIcons();
 
   QSizeF m_maxLogicalThumbSize;
-  std::shared_ptr<ProjectPages> m_pages;
-  std::shared_ptr<StageSequence> m_stages;
+  std::shared_ptr<ProjectDocument> m_document;
   QString m_projectFile;
-  OutputFileNameGenerator m_outFileNameGen;
   std::shared_ptr<ThumbnailPixmapCache> m_thumbnailCache;
   std::unique_ptr<ThumbnailSequence> m_thumbSequence;
   std::unique_ptr<WorkerThreadPool> m_workerThreadPool;
@@ -332,7 +323,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   std::unique_ptr<QWidget> m_batchProcessingWidget;
   std::unique_ptr<ProcessingIndicationWidget> m_processingIndicationWidget;
   boost::function<bool()> m_checkBeepWhenFinished;
-  SelectedPage m_selectedPage;
   QObjectCleanupHandler m_optionsWidgetCleanup;
   QObjectCleanupHandler m_imageWidgetCleanup;
   std::unique_ptr<OutOfMemoryDialog> m_outOfMemoryDialog;

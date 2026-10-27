@@ -4,17 +4,15 @@
 #include "PipelineSession.h"
 
 #include <BackgroundTask.h>
-#include <FileNameDisambiguator.h>
 #include <ImageFileInfo.h>
 #include <ImageMetadata.h>
 #include <ImageMetadataLoader.h>
 #include <PageInfo.h>
 #include <PageSelectionAccessor.h>
 #include <PageSelectionProvider.h>
+#include <ProjectDocument.h>
 #include <ProjectPages.h>
 #include <ProjectReader.h>
-#include <ProjectWriter.h>
-#include <SelectedPage.h>
 #include <StageChain.h>
 #include <StageSequence.h>
 #include <ThumbnailPixmapCache.h>
@@ -94,18 +92,13 @@ std::unique_ptr<PipelineSession> PipelineSession::open(const CliRequest& request
     }
   }
 
-  session->m_outFileNameGen = OutputFileNameGenerator(session->m_disambiguator, session->m_outputDir,
-                                                      session->m_pages->layoutDirection());
-
-  // Registration order is the order MainWindow uses (IMAGE_VIEW); it is what
-  // gives two inputs with the same basename distinct output names.
-  for (const PageInfo& page : session->m_pages->toPageSequence(IMAGE_VIEW)) {
-    session->m_outFileNameGen.disambiguator()->registerFile(page.id().imageId().filePath());
-  }
-
   session->m_thumbnailDir = QDir::tempPath() + "/scantailor-cli-thumbs-"
                             + QString::number(QCoreApplication::applicationPid());
   session->m_thumbnailCache = std::make_shared<ThumbnailPixmapCache>(session->m_thumbnailDir, QSize(100, 100), 100, 50);
+
+  // A saved project records one selected page. The CLI has always recorded the first, and it
+  // is chosen here, once, while the page order the request was made against is still in hand.
+  session->m_document->selectPage(session->m_pageSequence.pageAt(0).id(), PAGE_VIEW);
 
   return session;
 }
@@ -151,16 +144,15 @@ bool PipelineSession::loadImages(CliError& error) {
     }
   }
 
-  m_pages = std::make_shared<ProjectPages>(files, pageMode, Qt::LeftToRight);
-  m_disambiguator = std::make_shared<FileNameDisambiguator>();
+  auto pages = std::make_shared<ProjectPages>(files, pageMode, Qt::LeftToRight);
   m_outputDir = m_request.outputDir;
 
-  auto provider = std::make_shared<CliPageSelectionProvider>(m_pages);
-  m_stages = std::make_shared<StageSequence>(m_pages, PageSelectionAccessor(provider));
+  auto provider = std::make_shared<CliPageSelectionProvider>(pages);
+  m_document = ProjectDocument::create(pages, m_outputDir, PageSelectionAccessor(provider));
 
-  m_pageSequence = m_pages->toPageSequence(PAGE_VIEW);
+  m_pageSequence = pages->toPageSequence(PAGE_VIEW);
   for (const PageInfo& page : m_pageSequence) {
-    for (const auto& filter : m_stages->filters()) {
+    for (const auto& filter : m_document->stages()->filters()) {
       filter->loadDefaultSettings(page);
     }
   }
@@ -195,8 +187,7 @@ bool PipelineSession::loadProject(CliError& error) {
     return false;
   }
 
-  m_pages = reader.pages();
-  m_disambiguator = reader.namingDisambiguator();
+  const std::shared_ptr<ProjectPages> pages = reader.pages();
 
   m_outputDir = m_request.outputDir;
   if (m_outputDir.isEmpty()) {
@@ -207,7 +198,7 @@ bool PipelineSession::loadProject(CliError& error) {
   }
 
   std::set<QString> missingFiles;
-  for (const PageInfo& page : m_pages->toPageSequence(IMAGE_VIEW)) {
+  for (const PageInfo& page : pages->toPageSequence(IMAGE_VIEW)) {
     const QString& path = page.id().imageId().filePath();
     if (!QFileInfo::exists(path)) {
       missingFiles.insert(path);
@@ -223,16 +214,15 @@ bool PipelineSession::loadProject(CliError& error) {
     return false;
   }
 
-  auto provider = std::make_shared<CliPageSelectionProvider>(m_pages);
-  m_stages = std::make_shared<StageSequence>(m_pages, PageSelectionAccessor(provider));
-  reader.readFilterSettings(m_stages->filters());
+  auto provider = std::make_shared<CliPageSelectionProvider>(pages);
+  m_document = ProjectDocument::fromProject(reader, m_outputDir, PageSelectionAccessor(provider));
 
-  m_pageSequence = m_pages->toPageSequence(PAGE_VIEW);
+  m_pageSequence = pages->toPageSequence(PAGE_VIEW);
   return true;
 }
 
 void PipelineSession::configure(const FilterRange& range) {
-  FilterConfigAdapter adapter(m_request, m_stages, m_pageSequence);
+  FilterConfigAdapter adapter(m_request, m_document->stages(), m_pageSequence);
   adapter.apply(range);
 }
 
@@ -240,12 +230,14 @@ BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog&
   // range.start cannot shorten the chain: the CLI always begins at LoadFileTask
   // and has no cached stage inputs to resume from. It only limits which filters
   // receive the request's overrides.
-  const StageChain chain(m_stages, StageChain::Deps{m_thumbnailCache, m_pages, m_outFileNameGen, true, false});
+  const StageChain chain(m_document->stages(),
+                         StageChain::Deps{m_thumbnailCache, m_document->pages(),
+                                          m_document->outputFileNameGenerator(), true, false});
 
   BatchReport report;
   report.pages.reserve(m_pageSequence.numPages());
 
-  const bool producesOutput = (range.end >= m_stages->outputFilterIdx());
+  const bool producesOutput = (range.end >= m_document->stages()->outputFilterIdx());
   const int numPages = static_cast<int>(m_pageSequence.numPages());
 
   for (size_t i = 0; i < m_pageSequence.numPages(); ++i) {
@@ -263,7 +255,7 @@ BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog&
       (*task)();
       outcome.ok = true;
       if (producesOutput) {
-        outcome.outputFile = m_outFileNameGen.filePathFor(page.id());
+        outcome.outputFile = m_document->outputFileNameGenerator().filePathFor(page.id());
       }
     } catch (const std::exception& e) {
       outcome.errorMessage = QString::fromUtf8(e.what());
@@ -284,9 +276,7 @@ BatchReport PipelineSession::process(const FilterRange& range, const ConsoleLog&
 }
 
 bool PipelineSession::saveProject(const QString& path, CliError& error) {
-  const SelectedPage selectedPage(pages().pageAt(0).id(), PAGE_VIEW);
-  ProjectWriter writer(m_pages, selectedPage, m_outFileNameGen);
-  if (!writer.write(path, m_stages->filters())) {
+  if (!m_document->save(path)) {
     error = {ExitCode::OUTPUT_ERROR, QString("Failed to save project file: %1").arg(path)};
     return false;
   }

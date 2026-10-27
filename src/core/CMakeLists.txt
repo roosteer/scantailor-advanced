@@ -59,6 +59,7 @@ set(common_sources
     LoadFileTask.cpp LoadFileTask.h
     FilterOptionsWidget.cpp FilterOptionsWidget.h
     FilterUiInterface.h
+    ProjectDocument.cpp ProjectDocument.h
     ProjectReader.cpp ProjectReader.h
     ProjectWriter.cpp ProjectWriter.h
     AtomicFileOverwriter.cpp AtomicFileOverwriter.h

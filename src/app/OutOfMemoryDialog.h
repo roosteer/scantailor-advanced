@@ -8,23 +8,22 @@
 #include <QString>
 #include <memory>
 
-#include "OutputFileNameGenerator.h"
-#include "ProjectPages.h"
-#include "SelectedPage.h"
-#include "StageSequence.h"
 #include "ui_OutOfMemoryDialog.h"
 
+class ProjectDocument;
+
+/**
+ * \brief Last chance to save a project that is already being torn down.
+ *
+ * The dialog owns the document it is given, so the window it belongs to may be gone by the
+ * time the user presses Save.
+ */
 class OutOfMemoryDialog : public QDialog {
   Q_OBJECT
  public:
   explicit OutOfMemoryDialog(QWidget* parent = nullptr);
 
-  void setParams(const QString& projectFile,
-                 // may be empty
-                 std::shared_ptr<StageSequence> stages,
-                 std::shared_ptr<ProjectPages> pages,
-                 const SelectedPage& selectedPage,
-                 const OutputFileNameGenerator& outFileNameGen);
+  void setParams(const QString& projectFile, std::shared_ptr<ProjectDocument> document);
 
  private slots:
 
@@ -33,16 +32,11 @@ class OutOfMemoryDialog : public QDialog {
   void saveProjectAs();
 
  private:
-  bool saveProjectWithFeedback(const QString& projectFile);
-
   void showSaveSuccessScreen();
 
   Ui::OutOfMemoryDialog ui;
   QString m_projectFile;
-  std::shared_ptr<StageSequence> m_stages;
-  std::shared_ptr<ProjectPages> m_pages;
-  SelectedPage m_selectedPage;
-  OutputFileNameGenerator m_outFileNameGen;
+  std::shared_ptr<ProjectDocument> m_document;
 };
 
 

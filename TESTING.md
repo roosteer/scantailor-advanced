@@ -19,6 +19,7 @@ O ejecutar cada suite por separado:
 ./math_tests --log_level=message
 ./imageproc_tests --log_level=message
 ./qt_tests
+./app_tests
 ```
 
 ## Cobertura por módulo
@@ -29,6 +30,7 @@ O ejecutar cada suite por separado:
 - **ImageId** / **PageId**: identificación de imágenes y páginas, orden, subpáginas.
 - **Margins**: márgenes y serialización XML.
 - **PageRange**: rangos de páginas y selección alternada.
+- **ProjectDocument**: etiquetas de salida ante nombres repetidos, ida y vuelta de un proyecto (páginas, selección, rotación, RTL), proyecto movido de raíz y guardado fallido.
 - **SelectContentApply**: aplicación del filtro de contenido.
 - **SmartFilenameOrdering**: ordenación natural de nombres de archivo.
 - **Units**: conversión y representación de unidades (px, mm, cm, in).
@@ -74,13 +76,23 @@ Enlazan la librería estática `app_cli_lib`, así que ejercitan la lógica de l
 - **rendersReport** / **mapsExitCode**: esquema del informe JSON y código de salida asociado.
 
 
+### app_tests (Qt Test)
+
+Enlazan `app_lib`, la librería estática donde viven los widgets del editor, así que ejercitan
+los diálogos reales en lugar de una copia. Necesitan `QT_QPA_PLATFORM=offscreen` (ctest lo fija)
+y llevan compilados los recursos de la aplicación, porque los widgets cargan iconos de ellos.
+
+- **saveButtonFollowsTheProjectFile**: el botón "Save Project" solo se ofrece cuando hay una ruta de proyecto conocida; sin ella queda únicamente "Save Project As".
+- **savesTheDocumentAfterTheEditorIsGone**: el diálogo de falta de memoria conserva el documento que se le entrega, guarda un proyecto reabrible (páginas y página seleccionada) después de que la ventana que lo creó haya desaparecido, y puede volver a guardarlo.
+
 ## Tests de UI/UX y caminos de uso
 
-Actualmente no hay tests automatizados de interfaz ni de flujos completos de uso. Para mejorar la cobertura de UX y caminos de uso se puede:
+`app_tests` cubre los widgets que se pueden construir y usar sin pantalla. Para ampliar la
+cobertura de UX y caminos de uso se puede:
 
-1. **Qt Test**: Añadir un ejecutable de tests que use `QTest` para:
-   - Crear widgets/diálogos sin mostrar ventana.
-   - Simular eventos (clic, teclado) y comprobar estado.
+1. **Qt Test**: Añadir casos a `app_tests` que:
+   - Creen widgets/diálogos adicionales sin mostrar ventana.
+   - Simulen eventos (clic, teclado) y comprueben estado.
 
 2. **Tests de integración**: Scripts o tests que:
    - Abran proyectos de ejemplo.

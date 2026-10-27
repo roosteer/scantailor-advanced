@@ -3,13 +3,7 @@ set(CMAKE_AUTORCC ON)
 
 set(target_name scantailor-advanced)
 
-set(resource_files
-    resources.qrc
-    dark_scheme/dark_scheme.qrc
-    light_scheme/light_scheme.qrc)
-list_items_prepend(resource_files "${SCANTAILOR_RESOURCES_DIR}/")
-
-set(gui_only_sources
+set(gui_sources
     RelinkablePathVisualization.cpp RelinkablePathVisualization.h
     RelinkingModel.cpp RelinkingModel.h
     RelinkingSortingModel.cpp RelinkingSortingModel.h
@@ -21,16 +15,16 @@ set(gui_only_sources
     ProjectCreationContext.cpp ProjectCreationContext.h
     ProjectOpeningContext.cpp ProjectOpeningContext.h
     OutOfMemoryDialog.cpp OutOfMemoryDialog.h
+    ProjectSaveInteraction.cpp ProjectSaveInteraction.h
     ThumbnailSequence.cpp ThumbnailSequence.h
     ProjectFilesDialog.cpp ProjectFilesDialog.h
     NewOpenProjectPanel.cpp NewOpenProjectPanel.h
     SystemLoadWidget.cpp SystemLoadWidget.h
     MainWindow.cpp MainWindow.h
-    main.cpp
     StatusBarPanel.cpp StatusBarPanel.h
     DefaultParamsDialog.cpp DefaultParamsDialog.h)
 
-set(gui_only_ui_files
+set(gui_ui_files
     AboutDialog.ui
     BatchProcessingLowerPanel.ui
     DefaultParamsDialog.ui
@@ -69,16 +63,28 @@ if (WIN32)
   endif()
 endif()
 
-add_executable(
-    ${target_name} WIN32 ${gui_only_sources} ${gui_only_ui_files}
-    ${resource_files} ${win32_resource_file})
+# The widgets live in a library so the tests can build a real dialog or window instead of a
+# copy of it; the executable itself stays a stub around main.cpp.
+add_library(app_lib STATIC ${gui_sources} ${gui_ui_files})
+target_link_libraries(
+    app_lib
+    PUBLIC core ${EXTRA_LIBS})
+target_include_directories(
+    app_lib
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+           # Widget headers include the generated ui_*.h, so consumers need AUTOUIC's output.
+           "${CMAKE_CURRENT_BINARY_DIR}/app_lib_autogen/include"
+           "${CMAKE_CURRENT_BINARY_DIR}/app_lib_autogen/include_$<CONFIG>"
+           "$<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_INCLUDE_DIRECTORIES>")
+
+add_executable(${target_name} WIN32 main.cpp ${app_resource_files} ${win32_resource_file})
 target_link_libraries(
     ${target_name}
-    PRIVATE core ${EXTRA_LIBS})
+    PRIVATE app_lib)
 target_include_directories(
     ${target_name}
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}"
-    "$<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_INCLUDE_DIRECTORIES>")
+            "$<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_INCLUDE_DIRECTORIES>")
 install(TARGETS ${target_name} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 if (Qt6_FOUND AND WIN32)
@@ -92,4 +98,4 @@ if (Qt6_FOUND AND WIN32)
   install(CODE "execute_process(COMMAND \"${QT_BINDIR}/windeployqt\" \"\$\{CMAKE_INSTALL_PREFIX\}\")")
 endif()
 
-translation_sources(${target_name} ${gui_only_sources} ${gui_only_ui_files})
+translation_sources(${target_name} ${gui_sources} ${gui_ui_files})

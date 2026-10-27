@@ -21,6 +21,7 @@
 #include "ExitCode.h"
 #include "FilterRange.h"
 #include "PipelineSession.h"
+#include "ProjectDocument.h"
 #include "StageSequence.h"
 
 using namespace cli;
@@ -70,7 +71,8 @@ int main(int argc, char* argv[]) {
       return static_cast<int>(error.code);
     }
 
-    const std::optional<FilterRange> range = resolveFilterRange(request, session->stages()->count(), error);
+    const std::optional<FilterRange> range
+        = resolveFilterRange(request, session->document()->stages()->count(), error);
     if (!range) {
       ConsoleLog::writeError(error.message);
       return static_cast<int>(error.code);

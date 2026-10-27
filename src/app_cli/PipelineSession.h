@@ -12,14 +12,11 @@
 #include "ExitCode.h"
 #include "FilterRange.h"
 #include "NonCopyable.h"
-#include "OutputFileNameGenerator.h"
 #include "PageSequence.h"
 
 class BackgroundTask;
-class FileNameDisambiguator;
 class PageInfo;
-class ProjectPages;
-class StageSequence;
+class ProjectDocument;
 class ThumbnailPixmapCache;
 
 namespace cli {
@@ -27,8 +24,11 @@ namespace cli {
 class ConsoleLog;
 
 /**
- * One headless run: the pages, the filter stages, the output naming and the
- * thumbnail cache, wired the way MainWindow wires a new project.
+ * \brief One headless run, wired the way MainWindow wires a new project.
+ *
+ * The document owns the pages, the stages, the output naming and the selection; the
+ * session keeps only the page order the request was made against, which must not change
+ * while the filters are being configured.
  */
 class PipelineSession {
   DECLARE_NON_COPYABLE(PipelineSession)
@@ -42,10 +42,10 @@ class PipelineSession {
 
   ~PipelineSession();
 
-  /** Pages as the user sees them (PAGE_VIEW). */
+  /** Pages as the user sees them (PAGE_VIEW), in request order. */
   const PageSequence& pages() const { return m_pageSequence; }
 
-  const std::shared_ptr<StageSequence>& stages() const { return m_stages; }
+  const std::shared_ptr<ProjectDocument>& document() const { return m_document; }
 
   /** Applies the request's filter overrides for the range. */
   void configure(const FilterRange& range);
@@ -63,11 +63,8 @@ class PipelineSession {
   bool loadProject(CliError& error);
 
   CliRequest m_request;
-  std::shared_ptr<ProjectPages> m_pages;
+  std::shared_ptr<ProjectDocument> m_document;
   PageSequence m_pageSequence;
-  std::shared_ptr<StageSequence> m_stages;
-  std::shared_ptr<FileNameDisambiguator> m_disambiguator;
-  OutputFileNameGenerator m_outFileNameGen;
   std::shared_ptr<ThumbnailPixmapCache> m_thumbnailCache;
   QString m_outputDir;
   QString m_thumbnailDir;

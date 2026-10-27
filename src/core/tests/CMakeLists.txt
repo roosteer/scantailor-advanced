@@ -15,6 +15,7 @@ set(sources
     TestPageRange.cpp
     TestPageSequence.cpp
     TestPageSplitApply.cpp
+    TestProjectDocument.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
     TestStageChain.cpp
