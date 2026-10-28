@@ -4,8 +4,8 @@
 #include "ProjectWriter.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QTextStream>
 #include <QtXml>
 
@@ -112,7 +112,9 @@ QByteArray ProjectWriter::serialize(const QString& filePath, const std::vector<F
 }  // ProjectWriter::serialize
 
 bool ProjectWriter::writeFile(const QString& filePath, const QByteArray& bytes) {
-  QFile file(filePath);
+  // Written beside the project and renamed into place on commit: a full disk, a crash or a
+  // path that cannot be replaced leaves the file the user had instead of a truncated one.
+  QSaveFile file(filePath);
   if (!file.open(QIODevice::WriteOnly)) {
     return false;
   }
@@ -120,12 +122,7 @@ bool ProjectWriter::writeFile(const QString& filePath, const QByteArray& bytes) 
   if (file.write(bytes) != bytes.size()) {
     return false;
   }
-  if (!file.flush()) {
-    return false;
-  }
-
-  file.close();
-  return file.error() == QFileDevice::NoError;
+  return file.commit();
 }  // ProjectWriter::writeFile
 
 QDomElement ProjectWriter::processDirectories(QDomDocument& doc, const QString& projectDirPath) const {
