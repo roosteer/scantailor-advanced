@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "CacheDrivenTask.h"
+#include "DocumentChangeNotifier.h"
 #include "FilterUiInterface.h"
 #include "OptionsWidget.h"
 #include "ProjectReader.h"
@@ -18,8 +19,9 @@
 #include "Utils.h"
 
 namespace output {
-Filter::Filter(const PageSelectionAccessor& pageSelectionAccessor)
-    : m_settings(std::make_shared<Settings>()),
+Filter::Filter(const PageSelectionAccessor& pageSelectionAccessor,
+               std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_settings(std::make_shared<Settings>(std::move(changeNotifier))),
       m_pageSelectionAccessor(pageSelectionAccessor),
       m_selectedPageOrder(0) {
   const PageOrderOption::ProviderPtr defaultOrder;

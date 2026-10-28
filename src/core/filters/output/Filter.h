@@ -20,6 +20,7 @@
 class ThumbnailPixmapCache;
 class OutputFileNameGenerator;
 class QString;
+class DocumentChangeNotifier;
 
 namespace output {
 class OptionsWidget;
@@ -32,7 +33,8 @@ class Filter : public AbstractFilter {
 
   Q_DECLARE_TR_FUNCTIONS(output::Filter)
  public:
-  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor);
+  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor,
+                  std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   ~Filter() override;
 

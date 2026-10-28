@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "CacheDrivenTask.h"
+#include "DocumentChangeNotifier.h"
 #include "FilterUiInterface.h"
 #include "OptionsWidget.h"
 #include "OrderBySplitTypeProvider.h"
@@ -20,9 +21,11 @@
 #include "Utils.h"
 
 namespace page_split {
-Filter::Filter(std::shared_ptr<ProjectPages> pageSequence, const PageSelectionAccessor& pageSelectionAccessor)
+Filter::Filter(std::shared_ptr<ProjectPages> pageSequence,
+               const PageSelectionAccessor& pageSelectionAccessor,
+               std::shared_ptr<DocumentChangeNotifier> changeNotifier)
     : m_pages(std::move(pageSequence)),
-      m_settings(std::make_shared<Settings>()),
+      m_settings(std::make_shared<Settings>(std::move(changeNotifier))),
       m_pageSelectionAccessor(pageSelectionAccessor),
       m_selectedPageOrder(0) {
   const PageOrderOption::ProviderPtr defaultOrder;

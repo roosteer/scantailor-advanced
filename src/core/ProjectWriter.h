@@ -6,6 +6,7 @@
 
 #include <foundation/Hashes.h>
 
+#include <QByteArray>
 #include <QString>
 #include <Qt>
 #include <boost/multi_index/hashed_index.hpp>
@@ -41,7 +42,16 @@ class ProjectWriter {
 
   ~ProjectWriter();
 
-  bool write(const QString& filePath, const std::vector<FilterPtr>& filters) const;
+  /**
+   * \brief The bytes of the project file \p filePath would receive.
+   *
+   * \p filePath only decides what the destination-relative paths look like, so the same
+   * document saved to the same place always produces the same bytes.
+   */
+  QByteArray serialize(const QString& filePath, const std::vector<FilterPtr>& filters) const;
+
+  /** Replaces \p filePath with \p bytes; false leaves the destination as it was. */
+  static bool writeFile(const QString& filePath, const QByteArray& bytes);
 
   /**
    * \p out will be called like this: out(ImageId, numeric_image_id)

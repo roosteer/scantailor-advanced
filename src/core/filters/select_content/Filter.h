@@ -18,6 +18,7 @@
 #include "Settings.h"
 
 class QString;
+class DocumentChangeNotifier;
 
 namespace page_layout {
 class Task;
@@ -35,7 +36,8 @@ class Filter : public AbstractFilter {
 
   Q_DECLARE_TR_FUNCTIONS(select_content::Filter)
  public:
-  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor);
+  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor,
+                  std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   ~Filter() override;
 

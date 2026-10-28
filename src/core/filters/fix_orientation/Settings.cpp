@@ -5,22 +5,28 @@
 
 #include "../../Utils.h"
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "RelinkablePath.h"
 
 using namespace core;
 
 namespace fix_orientation {
-Settings::Settings() = default;
+Settings::Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)) {}
 
 Settings::~Settings() = default;
 
 void Settings::clear() {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_perImageRotation.clear();
   m_perImageTrim.clear();
 }
 
 void Settings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   PerImageRotation newRotations;
 
@@ -44,11 +50,15 @@ void Settings::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void Settings::applyRotation(const ImageId& imageId, const OrthogonalRotation rotation) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   setImageRotationLocked(imageId, rotation);
 }
 
 void Settings::applyRotation(const std::set<PageId>& pages, const OrthogonalRotation rotation) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   for (const PageId& page : pages) {
@@ -57,6 +67,8 @@ void Settings::applyRotation(const std::set<PageId>& pages, const OrthogonalRota
 }
 
 void Settings::applyTrim(const std::set<PageId>& pages, const ImageTrim& trim) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   for (const PageId& page : pages) {
@@ -90,6 +102,8 @@ bool Settings::isRotationNull(const ImageId& imageId) const {
 }
 
 void Settings::setTrim(const ImageId& imageId, const ImageTrim& trim) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   if (!trim.enabled) {
     m_perImageTrim.erase(imageId);
@@ -108,6 +122,8 @@ ImageTrim Settings::getTrim(const ImageId& imageId) const {
 }
 
 void Settings::clearTrim(const ImageId& imageId) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_perImageTrim.erase(imageId);
 }

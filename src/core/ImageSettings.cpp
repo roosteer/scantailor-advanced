@@ -4,18 +4,26 @@
 #include "ImageSettings.h"
 
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "RelinkablePath.h"
 #include "Utils.h"
 
 using namespace core;
 using namespace imageproc;
 
+ImageSettings::ImageSettings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)) {}
+
 void ImageSettings::clear() {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_perPageParams.clear();
 }
 
 void ImageSettings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   PerPageParams newParams;
   for (const auto& kv : m_perPageParams) {
@@ -29,6 +37,8 @@ void ImageSettings::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void ImageSettings::setPageParams(const PageId& pageId, const PageParams& params) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPageParams, pageId, params);
 }

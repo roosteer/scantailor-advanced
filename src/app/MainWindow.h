@@ -10,6 +10,7 @@
 #include <QSizeF>
 #include <QString>
 #include <QTimer>
+#include <atomic>
 #include <boost/function.hpp>
 #include <memory>
 #include <set>
@@ -92,6 +93,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   enum MainAreaAction { UPDATE_MAIN_AREA, CLEAR_MAIN_AREA };
 
  private slots:
+
+  void projectDocumentChanged();
 
   void autoSaveProject();
 
@@ -229,8 +232,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   SavePromptResult promptProjectSave();
 
-  static bool compareFiles(const QString& fpath1, const QString& fpath2);
-
   std::shared_ptr<const PageOrderProvider> currentPageOrderProvider() const;
 
   void updateSortOptions();
@@ -298,8 +299,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void updateThumbnailViewMode();
 
-  void updateAutoSaveTimer();
-
   PageSequence currentPageSequence();
 
   void setupIcons();
@@ -332,6 +331,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   bool m_debug;
   bool m_closing;
   QTimer m_autoSaveTimer;
+  /** True between a change notification and the queued slot that consumes it. */
+  std::atomic<bool> m_documentChangePending{false};
   StatusBarPanel* m_statusBarPanel;
   QActionGroup* m_unitsMenuActionGroup;
   QTimer m_maxLogicalThumbSizeUpdater;

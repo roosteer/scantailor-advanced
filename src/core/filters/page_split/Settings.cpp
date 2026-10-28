@@ -6,15 +6,19 @@
 #include <cassert>
 
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "PageLayoutAdapter.h"
 #include "RelinkablePath.h"
 
 namespace page_split {
-Settings::Settings() : m_defaultLayoutType(AUTO_LAYOUT_TYPE) {}
+Settings::Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)), m_defaultLayoutType(AUTO_LAYOUT_TYPE) {}
 
 Settings::~Settings() = default;
 
 void Settings::clear() {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   m_perPageRecords.clear();
@@ -22,6 +26,8 @@ void Settings::clear() {
 }
 
 void Settings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   PerPageRecords newRecords;
 
@@ -41,6 +47,8 @@ LayoutType Settings::defaultLayoutType() const {
 }
 
 void Settings::setLayoutTypeForAllPages(const LayoutType layoutType) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   auto it(m_perPageRecords.begin());
@@ -58,6 +66,8 @@ void Settings::setLayoutTypeForAllPages(const LayoutType layoutType) {
 }
 
 void Settings::setLayoutTypeFor(const LayoutType layoutType, const std::set<PageId>& pages) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   UpdateAction action;
@@ -71,6 +81,8 @@ void Settings::applyLayout(const std::set<PageId>& pages,
                            const LayoutType layoutType,
                            const Params& source,
                            const CutTransfer transfer) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   for (const PageId& pageId : pages) {
@@ -116,6 +128,8 @@ Settings::Record Settings::getPageRecordLocked(const ImageId& imageId) const {
 }
 
 void Settings::updatePage(const ImageId& imageId, const UpdateAction& action) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   updatePageLocked(imageId, action);
 }
@@ -157,6 +171,8 @@ void Settings::updatePageLocked(const PerPageRecords::iterator it, const UpdateA
 }
 
 Settings::Record Settings::conditionalUpdate(const ImageId& imageId, const UpdateAction& action, bool* conflict) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
 
   auto it(m_perPageRecords.find(imageId));

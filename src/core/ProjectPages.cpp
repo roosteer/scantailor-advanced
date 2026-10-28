@@ -141,13 +141,17 @@ void ProjectPages::listRelinkablePaths(const VirtualFunction<void, const Relinka
 }
 
 void ProjectPages::performRelinking(const AbstractRelinker& relinker) {
-  QMutexLocker locker(&m_mutex);
+  {
+    QMutexLocker locker(&m_mutex);
 
-  for (ImageDesc& image : m_images) {
-    const RelinkablePath oldPath(image.id.filePath(), RelinkablePath::File);
-    const QString newPath(relinker.substitutionPathFor(oldPath));
-    image.id.setFilePath(newPath);
+    for (ImageDesc& image : m_images) {
+      const RelinkablePath oldPath(image.id.filePath(), RelinkablePath::File);
+      const QString newPath(relinker.substitutionPathFor(oldPath));
+      image.id.setFilePath(newPath);
+    }
   }
+
+  emit modified();
 }
 
 void ProjectPages::setLayoutTypeFor(const ImageId& imageId, const LayoutType layout) {
@@ -223,15 +227,17 @@ std::vector<PageInfo> ProjectPages::insertImage(const ImageInfo& newImage,
                                                 const ImageId& existing,
                                                 const PageView view) {
   bool wasModified = false;
+  std::vector<PageInfo> inserted;
 
   {
     QMutexLocker locker(&m_mutex);
-    return insertImageImpl(newImage, beforeOrAfter, existing, view, wasModified);
+    inserted = insertImageImpl(newImage, beforeOrAfter, existing, view, wasModified);
   }
 
   if (wasModified) {
     emit modified();
   }
+  return inserted;
 }
 
 void ProjectPages::removePages(const std::set<PageId>& pages) {
@@ -314,13 +320,22 @@ void ProjectPages::updateMetadataFrom(const std::vector<ImageFileInfo>& files) {
     }
   }
 
-  QMutexLocker locker(&m_mutex);
+  bool wasModified = false;
 
-  for (ImageDesc& image : m_images) {
-    const MetadataMap::const_iterator it(metadataMap.find(image.id));
-    if (it != metadataMap.end()) {
-      image.metadata = it->second;
+  {
+    QMutexLocker locker(&m_mutex);
+
+    for (ImageDesc& image : m_images) {
+      const MetadataMap::const_iterator it(metadataMap.find(image.id));
+      if ((it != metadataMap.end()) && (it->second != image.metadata)) {
+        image.metadata = it->second;
+        wasModified = true;
+      }
     }
+  }
+
+  if (wasModified) {
+    emit modified();
   }
 }
 

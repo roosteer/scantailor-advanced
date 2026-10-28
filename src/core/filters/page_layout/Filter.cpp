@@ -8,8 +8,10 @@
 #include <filters/output/Task.h>
 
 #include <utility>
+#include <vector>
 
 #include "CacheDrivenTask.h"
+#include "DocumentChangeNotifier.h"
 #include "FilterUiInterface.h"
 #include "Guide.h"
 #include "OptionsWidget.h"
@@ -24,9 +26,11 @@
 #include "Utils.h"
 
 namespace page_layout {
-Filter::Filter(std::shared_ptr<ProjectPages> pages, const PageSelectionAccessor& pageSelectionAccessor)
+Filter::Filter(std::shared_ptr<ProjectPages> pages,
+               const PageSelectionAccessor& pageSelectionAccessor,
+               std::shared_ptr<DocumentChangeNotifier> changeNotifier)
     : m_pages(std::move(pages)),
-      m_settings(std::make_shared<Settings>()),
+      m_settings(std::make_shared<Settings>(std::move(changeNotifier))),
       m_pageSelectionAccessor(pageSelectionAccessor),
       m_selectedPageOrder(0) {
   const PageOrderOption::ProviderPtr defaultOrder;
@@ -90,9 +94,10 @@ QDomElement Filter::saveSettings(const ProjectWriter& writer, QDomDocument& doc)
 
   filterEl.setAttribute("showMiddleRect", m_settings->isShowingMiddleRectEnabled() ? "1" : "0");
 
-  if (!m_settings->guides().empty()) {
+  const std::vector<Guide> guides = m_settings->guides();
+  if (!guides.empty()) {
     QDomElement guidesEl(doc.createElement("guides"));
-    for (const Guide& guide : m_settings->guides()) {
+    for (const Guide& guide : guides) {
       guidesEl.appendChild(guide.toXml(doc, "guide"));
     }
     filterEl.appendChild(guidesEl);
@@ -125,13 +130,15 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
 
   const QDomElement guidesEl = filterEl.namedItem("guides").toElement();
   if (!guidesEl.isNull()) {
+    std::vector<Guide> guides;
     QDomNode node(guidesEl.firstChild());
     for (; !node.isNull(); node = node.nextSibling()) {
       if (!node.isElement() || (node.nodeName() != "guide")) {
         continue;
       }
-      m_settings->guides().emplace_back(node.toElement());
+      guides.emplace_back(node.toElement());
     }
+    m_settings->setGuides(std::move(guides));
   }
 
   const QString pageTagName("page");

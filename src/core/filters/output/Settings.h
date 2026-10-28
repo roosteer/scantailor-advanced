@@ -25,6 +25,7 @@
 #include "ZoneSet.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 namespace output {
 class Params;
@@ -33,7 +34,7 @@ class Settings {
   DECLARE_NON_COPYABLE(Settings)
 
  public:
-  Settings();
+  explicit Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~Settings();
 
@@ -149,6 +150,7 @@ class Settings {
 
   static PropertySet initialFillZoneProps();
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   mutable QMutex m_mutex;
   PerPageParams m_perPageParams;
   PerPageOutputParams m_perPageOutputParams;

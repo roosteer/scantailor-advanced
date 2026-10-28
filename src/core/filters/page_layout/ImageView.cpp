@@ -783,10 +783,12 @@ QTransform ImageView::guideToWidgetCs() const {
 }
 
 void ImageView::syncGuidesSettings() {
-  m_settings->guides().clear();
+  std::vector<Guide> guides;
+  guides.reserve(m_guides.size());
   for (const auto& idxAndGuide : m_guides) {
-    m_settings->guides().emplace_back(m_pixelsToMmXform.map(idxAndGuide.second));
+    guides.emplace_back(m_pixelsToMmXform.map(idxAndGuide.second));
   }
+  m_settings->setGuides(std::move(guides));
 }
 
 void ImageView::setupGuideInteraction(const int index) {

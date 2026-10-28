@@ -4,6 +4,7 @@
 #ifndef SCANTAILOR_CORE_PROJECTDOCUMENT_H_
 #define SCANTAILOR_CORE_PROJECTDOCUMENT_H_
 
+#include <QByteArray>
 #include <QString>
 #include <Qt>
 #include <memory>
@@ -18,6 +19,7 @@
 #include "SelectedPage.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 class FileNameDisambiguator;
 class ImageId;
 class ImageInfo;
@@ -59,9 +61,12 @@ class ProjectDocument {
 
   const SelectedPage& selectedPage() const { return m_selectedPage; }
 
+  /** The notifier every owner of persisted state reports its writes to. */
+  const std::shared_ptr<DocumentChangeNotifier>& changeNotifier() const { return m_changeNotifier; }
+
   bool isLoaded() const;
 
-  void selectPage(const PageId& page, PageView view) { m_selectedPage.set(page, view); }
+  void selectPage(const PageId& page, PageView view);
 
   /**
    * \brief The page to select in \p availablePages for the remembered selection.
@@ -81,17 +86,39 @@ class ProjectDocument {
 
   void performRelinking(const AbstractRelinker& relinker);
 
+  /**
+   * \brief Writes the project to \p filePath and makes that content the clean state.
+   *
+   * The bytes written are the bytes later compared, so a save followed by no change reads
+   * as clean even though the model only carries what the writer stores.
+   */
   bool save(const QString& filePath) const;
+
+  /** Whether the model differs from what is on disk at \p filePath. */
+  bool hasUnsavedChanges(const QString& filePath) const;
+
+  /** Takes the loaded model as the clean state for \p filePath, without writing anything. */
+  void markSavedState(const QString& filePath);
 
  private:
   ProjectDocument(const std::shared_ptr<ProjectPages>& pages,
                   std::shared_ptr<FileNameDisambiguator> disambiguator,
                   const QString& outputDir);
 
+  /** The bytes the project file at \p filePath would hold right now. */
+  QByteArray serializedState(const QString& filePath) const;
+
   std::shared_ptr<ProjectPages> m_pages;
   OutputFileNameGenerator m_outputFileNameGenerator;
   std::shared_ptr<StageSequence> m_stages;
   SelectedPage m_selectedPage;
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
+
+  // What the last successful write (or the load) produced. It is an observation about the
+  // file rather than part of the document, which is why save() may update it while const.
+  mutable QByteArray m_savedState;
+  mutable QString m_savedPath;
+  mutable bool m_savedStateValid;
 };
 
 #endif  // ifndef SCANTAILOR_CORE_PROJECTDOCUMENT_H_

@@ -20,6 +20,7 @@ class ImageId;
 class PageInfo;
 class ProjectPages;
 class OrthogonalRotation;
+class DocumentChangeNotifier;
 
 namespace deskew {
 class Task;
@@ -39,7 +40,9 @@ class Filter : public AbstractFilter {
 
   Q_DECLARE_TR_FUNCTIONS(page_split::Filter)
  public:
-  Filter(std::shared_ptr<ProjectPages> pageSequence, const PageSelectionAccessor& pageSelectionAccessor);
+  Filter(std::shared_ptr<ProjectPages> pageSequence,
+         const PageSelectionAccessor& pageSelectionAccessor,
+         std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   ~Filter() override;
 

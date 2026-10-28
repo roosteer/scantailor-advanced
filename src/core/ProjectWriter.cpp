@@ -77,7 +77,7 @@ static QString toRelativeIfPossible(const QString& projectDirPath, const QString
   return rel;
 }
 
-bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>& filters) const {
+QByteArray ProjectWriter::serialize(const QString& filePath, const std::vector<FilterPtr>& filters) const {
   const QString projectDirPath(QFileInfo(filePath).absolutePath());
 
   QDomDocument doc;
@@ -102,14 +102,31 @@ bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>&
     filtersEl.appendChild((*it)->saveSettings(*this, doc));
   }
 
-  QFile file(filePath);
-  if (file.open(QIODevice::WriteOnly)) {
-    QTextStream strm(&file);
+  QByteArray bytes;
+  {
+    QTextStream strm(&bytes);
     doc.save(strm, 2);
-    return true;
+    strm.flush();
+  }  // The stream has to be gone before the bytes are read.
+  return bytes;
+}  // ProjectWriter::serialize
+
+bool ProjectWriter::writeFile(const QString& filePath, const QByteArray& bytes) {
+  QFile file(filePath);
+  if (!file.open(QIODevice::WriteOnly)) {
+    return false;
   }
-  return false;
-}  // ProjectWriter::write
+
+  if (file.write(bytes) != bytes.size()) {
+    return false;
+  }
+  if (!file.flush()) {
+    return false;
+  }
+
+  file.close();
+  return file.error() == QFileDevice::NoError;
+}  // ProjectWriter::writeFile
 
 QDomElement ProjectWriter::processDirectories(QDomDocument& doc, const QString& projectDirPath) const {
   QDomElement dirsEl(doc.createElement("directories"));

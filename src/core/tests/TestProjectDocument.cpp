@@ -7,6 +7,8 @@
 #include <ProjectReader.h>
 
 #include <AbstractRelinker.h>
+#include <AutoManualMode.h>
+#include <DocumentChangeNotifier.h>
 #include <ImageId.h>
 #include <ImageInfo.h>
 #include <ImageMetadata.h>
@@ -20,8 +22,15 @@
 #include <PageView.h>
 #include <RelinkablePath.h>
 #include <StageSequence.h>
+#include <filters/deskew/Dependencies.h>
+#include <filters/deskew/Params.h>
+#include <filters/deskew/Settings.h>
 #include <filters/fix_orientation/Filter.h>
 #include <filters/fix_orientation/Settings.h>
+#include <filters/output/Params.h>
+#include <filters/output/Settings.h>
+#include <filters/page_layout/Guide.h>
+#include <filters/page_layout/Settings.h>
 #include <boost/test/unit_test.hpp>
 
 #include <QDir>
@@ -31,8 +40,10 @@
 #include <QSize>
 #include <QTemporaryDir>
 
+#include <atomic>
 #include <memory>
 #include <set>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -428,6 +439,200 @@ BOOST_AUTO_TEST_CASE(empty_document_and_failed_save) {
   const QString unreachable = dir.filePath("missing/project.ScanTailor");
   BOOST_CHECK(!withOutput->save(unreachable));
   BOOST_CHECK(!QFile::exists(unreachable));
+}
+
+/**
+ * The checkpoint is the document's own serialization, so a write that stores what was already
+ * there leaves it clean and undoing a change brings the clean state back. The setter is only
+ * told that something may have changed; this is where that becomes a decision.
+ */
+BOOST_AUTO_TEST_CASE(checkpoint_ignores_no_op_writes_and_follows_undone_changes) {
+  QTemporaryDir dir;
+  BOOST_REQUIRE(dir.isValid());
+
+  // Non-ASCII in both the inputs and the project path: these names end up in the bytes.
+  const QString firstPage = dir.filePath(QString::fromUtf8("in/één pagina.png"));
+  const QString secondPage = dir.filePath(QString::fromUtf8("in/twee pagina.png"));
+  touchFile(firstPage);
+  touchFile(secondPage);
+
+  const std::vector<ImageInfo> images{imageInfoFor(firstPage), imageInfoFor(secondPage)};
+  auto pages = std::make_shared<ProjectPages>(images, Qt::LeftToRight);
+  auto document = ProjectDocument::create(pages, dir.filePath("out"), accessorFor(pages));
+
+  const PageSequence sequence = pages->toPageSequence(PAGE_VIEW);
+  BOOST_REQUIRE_EQUAL(sequence.numPages(), 2);
+  const PageId firstPageId(sequence.pageAt(0).id());
+  const PageId secondPageId(sequence.pageAt(1).id());
+  const ImageId firstImageId(images[0].id());
+  document->selectPage(firstPageId, PAGE_VIEW);
+
+  const QString projectPath = dir.filePath(QString::fromUtf8("eindproject eindversie.ScanTailor"));
+  BOOST_REQUIRE(document->save(projectPath));
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // Comparing twice in a row must not move the checkpoint on its own.
+  for (int i = 0; i < 3; ++i) {
+    BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+  }
+
+  // The selection is persisted with the pages.
+  document->selectPage(secondPageId, PAGE_VIEW);
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  document->selectPage(firstPageId, PAGE_VIEW);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // fix_orientation writes an image only while it has a rotation or a trim.
+  const auto fixOrientation = document->stages()->fixOrientationFilter()->getSettings();
+  fixOrientation->applyRotation(firstImageId, quarterTurns(1));
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  fixOrientation->applyRotation(firstImageId, quarterTurns(0));
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // deskew writes a page only while it has params.
+  const auto deskew = document->stages()->deskewFilter()->getSettings();
+  deskew->setDegrees(std::set<PageId>{firstPageId}, deskew::Params(1.25, deskew::Dependencies(), MODE_MANUAL));
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  deskew->clearPageParams(firstPageId);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // page_layout keeps a guide list and a scalar flag.
+  const auto pageLayout = document->stages()->pageLayoutFilter()->getSettings();
+  pageLayout->setGuides({page_layout::Guide(Qt::Vertical, 12.5)});
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  pageLayout->setGuides({});
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  const bool showMiddleRect = pageLayout->isShowingMiddleRectEnabled();
+  pageLayout->enableShowingMiddleRect(!showMiddleRect);
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  pageLayout->enableShowingMiddleRect(showMiddleRect);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // output keeps its own per-page params.
+  const auto output = document->stages()->outputFilter()->getSettings();
+  const bool blackOnWhite = output->getParams(firstPageId).isBlackOnWhite();
+  output->setBlackOnWhite(firstPageId, !blackOnWhite);
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  output->setBlackOnWhite(firstPageId, blackOnWhite);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // Corrected DPI is written with the pages, so it is a document change like any other.
+  const ImageMetadata originalMetadata(images[0].metadata());
+  pages->updateImageMetadata(firstImageId, ImageMetadata(QSize(600, 800), Dpi(150, 150)));
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  pages->updateImageMetadata(firstImageId, originalMetadata);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  // The pending-auto-oblique flag only steers the worker for one run; it is not persisted.
+  deskew->setPendingAutoOblique(firstPageId, true);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+  deskew->takePendingAutoOblique(firstPageId);
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+}
+
+/**
+ * A write that fails must leave the old checkpoint exactly where it was, and writing to
+ * another destination must move the clean state there: relative paths depend on it.
+ */
+BOOST_AUTO_TEST_CASE(failed_write_keeps_dirtiness_and_save_as_moves_the_checkpoint) {
+  QTemporaryDir dir;
+  BOOST_REQUIRE(dir.isValid());
+
+  const QString filePath = dir.filePath("in/page.png");
+  touchFile(filePath);
+
+  const std::vector<ImageInfo> images{imageInfoFor(filePath)};
+  auto pages = std::make_shared<ProjectPages>(images, Qt::LeftToRight);
+  auto document = ProjectDocument::create(pages, dir.filePath("out"), accessorFor(pages));
+  const PageId pageId(pages->toPageSequence(PAGE_VIEW).pageAt(0).id());
+
+  const QString projectPath = dir.filePath("project.ScanTailor");
+  BOOST_REQUIRE(document->save(projectPath));
+
+  auto readBytes = [](const QString& path) {
+    QFile file(path);
+    BOOST_REQUIRE(file.open(QIODevice::ReadOnly));
+    return file.readAll();
+  };
+  const QByteArray bytesOnDisk(readBytes(projectPath));
+
+  document->stages()->fixOrientationFilter()->getSettings()->applyRotation(images[0].id(), quarterTurns(1));
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+
+  const QString unreachable = dir.filePath("missing/dir/project.ScanTailor");
+  BOOST_CHECK(!document->save(unreachable));
+  BOOST_CHECK(!QFile::exists(unreachable));
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  BOOST_CHECK(readBytes(projectPath) == bytesOnDisk);
+
+  // Save As: the same document, now clean at the new path and still dirty at the old one,
+  // because the inputs are written relative to wherever the file lives.
+  const QString otherPath = dir.filePath("elsewhere/project.ScanTailor");
+  BOOST_REQUIRE(QDir().mkpath(QFileInfo(otherPath).absolutePath()));
+  BOOST_REQUIRE(document->save(otherPath));
+  BOOST_CHECK(!document->hasUnsavedChanges(otherPath));
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
+  BOOST_CHECK(readBytes(projectPath) == bytesOnDisk);
+
+  const auto reopened = openDocument(otherPath);
+  BOOST_REQUIRE_EQUAL(reopened->pages()->toPageSequence(PAGE_VIEW).numPages(), 1);
+  BOOST_CHECK(reopened->stages()->fixOrientationFilter()->getSettings()->getRotationFor(images[0].id())
+              == quarterTurns(1));
+}
+
+/**
+ * The workers that write computed settings and page metadata are not the thread that reads the
+ * document. Their notifications have to arrive anyway, and clearing the handler has to stop
+ * them for good rather than leave one in flight.
+ */
+BOOST_AUTO_TEST_CASE(worker_writes_reach_the_observer_until_the_handler_is_cleared) {
+  QTemporaryDir dir;
+  BOOST_REQUIRE(dir.isValid());
+
+  const QString filePath = dir.filePath("in/scan.png");
+  touchFile(filePath);
+
+  const std::vector<ImageInfo> images{imageInfoFor(filePath)};
+  auto pages = std::make_shared<ProjectPages>(images, Qt::LeftToRight);
+  auto document = ProjectDocument::create(pages, dir.filePath("out"), accessorFor(pages));
+  const PageId pageId(pages->toPageSequence(PAGE_VIEW).pageAt(0).id());
+
+  std::atomic<int> notifications{0};
+  document->changeNotifier()->setHandler([&notifications] { notifications.fetch_add(1); });
+
+  const ImageMetadata correctedMetadata(QSize(600, 800), Dpi(150, 150));
+  {
+    std::thread worker([&] {
+      document->stages()->deskewFilter()->getSettings()->setDegrees(
+          std::set<PageId>{pageId}, deskew::Params(1.5, deskew::Dependencies(), MODE_MANUAL));
+      pages->updateImageMetadata(ImageId(filePath), correctedMetadata);
+    });
+    worker.join();
+  }
+  BOOST_CHECK(notifications.load() > 0);
+
+  // Both writes are in the document, so both are in the bytes.
+  const QString projectPath = dir.filePath("project.ScanTailor");
+  BOOST_REQUIRE(document->save(projectPath));
+  BOOST_CHECK(!document->hasUnsavedChanges(projectPath));
+
+  const auto reopened = openDocument(projectPath);
+  const auto reloadedParams = reopened->stages()->deskewFilter()->getSettings()->getPageParams(pageId);
+  BOOST_REQUIRE(reloadedParams);
+  BOOST_CHECK_CLOSE(reloadedParams->deskewAngle(), 1.5, 1e-6);
+  BOOST_CHECK(reopened->pages()->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi() == Dpi(150, 150));
+
+  // After the handler is gone a worker may still write: the notifier is owned by the settings,
+  // not by the observer.
+  document->changeNotifier()->clearHandler();
+  const int notificationsBeforeLateWrite = notifications.load();
+  {
+    std::thread lateWriter([&] { pages->updateImageMetadata(ImageId(filePath), ImageMetadata(QSize(600, 800), Dpi(400, 400))); });
+    lateWriter.join();
+  }
+  BOOST_CHECK_EQUAL(notifications.load(), notificationsBeforeLateWrite);
+  BOOST_CHECK(document->hasUnsavedChanges(projectPath));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

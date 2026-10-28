@@ -5,12 +5,14 @@
 
 #include "../../Utils.h"
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "RelinkablePath.h"
 
 using namespace core;
 
 namespace deskew {
-Settings::Settings() : m_algoContentBased(true) {
+Settings::Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)), m_algoContentBased(true) {
   m_deviationProvider.setComputeValueByKey([this](const PageId& pageId) -> double {
     auto it(m_perPageParams.find(pageId));
     if (it != m_perPageParams.end()) {
@@ -24,6 +26,8 @@ Settings::Settings() : m_algoContentBased(true) {
 Settings::~Settings() = default;
 
 void Settings::clear() {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_perPageParams.clear();
   m_pendingAutoOblique.clear();
@@ -31,6 +35,8 @@ void Settings::clear() {
 }
 
 void Settings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   PerPageParams newParams;
 
@@ -59,12 +65,16 @@ void Settings::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void Settings::setPageParams(const PageId& pageId, const Params& params) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPageParams, pageId, params);
   m_deviationProvider.addOrUpdate(pageId);
 }
 
 void Settings::clearPageParams(const PageId& pageId) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_perPageParams.erase(pageId);
   m_deviationProvider.remove(pageId);
@@ -82,6 +92,8 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
 }
 
 void Settings::setDegrees(const std::set<PageId>& pages, const Params& params) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   for (const PageId& page : pages) {
     Utils::mapSetValue(m_perPageParams, page, params);
@@ -93,6 +105,8 @@ void Settings::applyAngles(const std::set<PageId>& pages, const Params& source, 
   if ((selection == AngleSelection::Neither) || pages.empty()) {
     return;
   }
+
+  DocumentChangeGuard guard(m_changeNotifier.get());
 
   const bool applyDeskew = (selection == AngleSelection::Deskew) || (selection == AngleSelection::Both);
   const bool applyOblique = (selection == AngleSelection::Oblique) || (selection == AngleSelection::Both);
@@ -123,6 +137,8 @@ const DeviationProvider<PageId>& Settings::deviationProvider() const {
 }
 
 void Settings::setAlgoContentBased(bool contentBased) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_algoContentBased = contentBased;
 }

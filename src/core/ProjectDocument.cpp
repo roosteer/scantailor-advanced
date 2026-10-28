@@ -3,10 +3,13 @@
 
 #include "ProjectDocument.h"
 
+#include <QFileInfo>
+
 #include <cassert>
 #include <utility>
 
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "FileNameDisambiguator.h"
 #include "ImageId.h"
 #include "ImageInfo.h"
@@ -28,18 +31,29 @@ std::shared_ptr<FileNameDisambiguator> newDisambiguator() {
 ProjectDocument::ProjectDocument(const std::shared_ptr<ProjectPages>& pages,
                                  std::shared_ptr<FileNameDisambiguator> disambiguator,
                                  const QString& outputDir)
-    : m_pages(pages), m_outputFileNameGenerator(std::move(disambiguator), outputDir, pages->layoutDirection()) {
+    : m_pages(pages),
+      m_outputFileNameGenerator(std::move(disambiguator), outputDir, pages->layoutDirection()),
+      m_changeNotifier(std::make_shared<DocumentChangeNotifier>()),
+      m_savedStateValid(false) {
   // IMAGE_VIEW order is the order the editor and the CLI both show, and the order that
   // gives two inputs with equal basenames distinct labels. It has to be decided once.
   for (const PageInfo& page : m_pages->toPageSequence(IMAGE_VIEW)) {
     m_outputFileNameGenerator.disambiguator()->registerFile(page.imageId().filePath());
   }
+
+  // The page list is the one place that sees worker-thread writes of metadata and of the
+  // per-page bookkeeping, so its signal is what turns them into document notifications. The
+  // pages object is the connection's context, so the connection dies with the document.
+  QObject::connect(
+      m_pages.get(), &ProjectPages::modified, m_pages.get(), [notifier = m_changeNotifier] { notifier->notify(); },
+      Qt::DirectConnection);
 }
 
 std::shared_ptr<ProjectDocument> ProjectDocument::createEmpty(const PageSelectionAccessor& accessor) {
   std::shared_ptr<ProjectDocument> document(
       new ProjectDocument(std::make_shared<ProjectPages>(), newDisambiguator(), QString()));
-  document->m_stages = std::make_shared<StageSequence>(document->m_pages, accessor);
+  document->m_stages
+      = std::make_shared<StageSequence>(document->m_pages, accessor, document->m_changeNotifier);
   return document;
 }
 
@@ -49,7 +63,8 @@ std::shared_ptr<ProjectDocument> ProjectDocument::create(const std::shared_ptr<P
   assert(pages);
 
   std::shared_ptr<ProjectDocument> document(new ProjectDocument(pages, newDisambiguator(), outputDir));
-  document->m_stages = std::make_shared<StageSequence>(document->m_pages, accessor);
+  document->m_stages
+      = std::make_shared<StageSequence>(document->m_pages, accessor, document->m_changeNotifier);
   return document;
 }
 
@@ -63,13 +78,19 @@ std::shared_ptr<ProjectDocument> ProjectDocument::fromProject(const ProjectReade
   std::shared_ptr<ProjectDocument> document(
       new ProjectDocument(reader.pages(), reader.namingDisambiguator(), outputDir));
   document->m_selectedPage = reader.selectedPage();
-  document->m_stages = std::make_shared<StageSequence>(document->m_pages, accessor);
+  document->m_stages
+      = std::make_shared<StageSequence>(document->m_pages, accessor, document->m_changeNotifier);
   reader.readFilterSettings(document->m_stages->filters());
   return document;
 }
 
 bool ProjectDocument::isLoaded() const {
   return !m_outputFileNameGenerator.outDir().isEmpty();
+}
+
+void ProjectDocument::selectPage(const PageId& page, const PageView view) {
+  m_selectedPage.set(page, view);
+  m_changeNotifier->notify();
 }
 
 PageId ProjectDocument::resolveSelection(const PageSequence& availablePages,
@@ -116,21 +137,67 @@ std::vector<PageInfo> ProjectDocument::insertImage(const ImageInfo& image,
   for (const PageInfo& page : inserted) {
     m_outputFileNameGenerator.disambiguator()->registerFile(page.imageId().filePath());
   }
+
+  if (!inserted.empty()) {
+    m_changeNotifier->notify();
+  }
   return inserted;
 }
 
 void ProjectDocument::setLayoutDirection(const Qt::LayoutDirection direction) {
   m_pages->setLayoutDirection(direction);
   m_outputFileNameGenerator.setLayoutDirection(direction);
+  m_changeNotifier->notify();
 }
 
 void ProjectDocument::performRelinking(const AbstractRelinker& relinker) {
   m_pages->performRelinking(relinker);
   m_stages->performRelinking(relinker);
   m_outputFileNameGenerator.performRelinking(relinker);
+  m_changeNotifier->notify();
+}
+
+QByteArray ProjectDocument::serializedState(const QString& filePath) const {
+  const ProjectWriter writer(m_pages, m_selectedPage, m_outputFileNameGenerator);
+  return writer.serialize(filePath, m_stages->filters());
 }
 
 bool ProjectDocument::save(const QString& filePath) const {
-  const ProjectWriter writer(m_pages, m_selectedPage, m_outputFileNameGenerator);
-  return writer.write(filePath, m_stages->filters());
+  const QByteArray bytes(serializedState(filePath));
+
+  if (!ProjectWriter::writeFile(filePath, bytes)) {
+    // A failed write must not make the model look saved.
+    return false;
+  }
+
+  m_savedState = bytes;
+  m_savedPath = QFileInfo(filePath).absoluteFilePath();
+  m_savedStateValid = true;
+  return true;
+}
+
+bool ProjectDocument::hasUnsavedChanges(const QString& filePath) const {
+  if (filePath.isEmpty() || !m_savedStateValid) {
+    return true;
+  }
+
+  // The destination is part of the state: saving elsewhere produces different relative paths.
+  if (QFileInfo(filePath).absoluteFilePath() != m_savedPath) {
+    return true;
+  }
+
+  return serializedState(m_savedPath) != m_savedState;
+}
+
+void ProjectDocument::markSavedState(const QString& filePath) {
+  if (filePath.isEmpty()) {
+    m_savedState.clear();
+    m_savedPath.clear();
+    m_savedStateValid = false;
+    return;
+  }
+
+  m_savedPath = QFileInfo(filePath).absoluteFilePath();
+  m_savedState = serializedState(m_savedPath);
+  m_savedStateValid = true;
 }

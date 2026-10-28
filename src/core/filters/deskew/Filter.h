@@ -13,10 +13,12 @@
 #include "PageSelectionAccessor.h"
 #include "PageView.h"
 #include "SafeDeletingQObjectPtr.h"
+
 #include "Settings.h"
 
 class QString;
 class ImageSettings;
+class DocumentChangeNotifier;
 
 namespace select_content {
 class Task;
@@ -34,7 +36,8 @@ class Filter : public AbstractFilter {
 
   Q_DECLARE_TR_FUNCTIONS(deskew::Filter)
  public:
-  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor);
+  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor,
+                  std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   ~Filter() override;
 

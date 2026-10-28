@@ -5,6 +5,7 @@
 #define SCANTAILOR_FIX_ORIENTATION_SETTINGS_H_
 
 #include <QMutex>
+#include <memory>
 #include <set>
 #include <unordered_map>
 
@@ -15,13 +16,14 @@
 #include "PageId.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 namespace fix_orientation {
 class Settings {
   DECLARE_NON_COPYABLE(Settings)
 
  public:
-  Settings();
+  explicit Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~Settings();
 
@@ -51,6 +53,7 @@ class Settings {
 
   void setImageRotationLocked(const ImageId& imageId, const OrthogonalRotation& rotation);
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   mutable QMutex m_mutex;
   PerImageRotation m_perImageRotation;
   PerImageTrim m_perImageTrim;

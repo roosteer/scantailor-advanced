@@ -17,6 +17,7 @@
 #include "Params.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 namespace page_split {
 class Settings {
@@ -107,7 +108,7 @@ class Settings {
   };
 
 
-  Settings();
+  explicit Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~Settings();
 
@@ -178,6 +179,7 @@ class Settings {
 
   void updatePageLocked(PerPageRecords::iterator it, const UpdateAction& action);
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   mutable QMutex m_mutex;
   PerPageRecords m_perPageRecords;
   LayoutType m_defaultLayoutType;

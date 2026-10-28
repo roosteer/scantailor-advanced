@@ -5,6 +5,7 @@
 
 #include "../../Utils.h"
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "FillColorProperty.h"
 #include "PictureLayerProperty.h"
 #include "RelinkablePath.h"
@@ -12,12 +13,16 @@
 using namespace core;
 
 namespace output {
-Settings::Settings()
-    : m_defaultPictureZoneProps(initialPictureZoneProps()), m_defaultFillZoneProps(initialFillZoneProps()) {}
+Settings::Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)),
+      m_defaultPictureZoneProps(initialPictureZoneProps()),
+      m_defaultFillZoneProps(initialFillZoneProps()) {}
 
 Settings::~Settings() = default;
 
 void Settings::clear() {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   initialPictureZoneProps().swap(m_defaultPictureZoneProps);
@@ -30,6 +35,8 @@ void Settings::clear() {
 }
 
 void Settings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   PerPageParams newParams;
@@ -92,11 +99,15 @@ Params Settings::getParams(const PageId& pageId) const {
 }
 
 void Settings::setParams(const PageId& pageId, const Params& params) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPageParams, pageId, params);
 }
 
 void Settings::setColorParams(const PageId& pageId, const ColorParams& prms) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -110,6 +121,8 @@ void Settings::setColorParams(const PageId& pageId, const ColorParams& prms) {
 }
 
 void Settings::setPictureShapeOptions(const PageId& pageId, PictureShapeOptions pictureShapeOptions) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -123,6 +136,8 @@ void Settings::setPictureShapeOptions(const PageId& pageId, PictureShapeOptions 
 }
 
 void Settings::setDpi(const PageId& pageId, const Dpi& dpi) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -136,6 +151,8 @@ void Settings::setDpi(const PageId& pageId, const Dpi& dpi) {
 }
 
 void Settings::setDewarpingOptions(const PageId& pageId, const DewarpingOptions& opt) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -149,6 +166,8 @@ void Settings::setDewarpingOptions(const PageId& pageId, const DewarpingOptions&
 }
 
 void Settings::setSplittingOptions(const PageId& pageId, const SplittingOptions& opt) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -162,6 +181,8 @@ void Settings::setSplittingOptions(const PageId& pageId, const SplittingOptions&
 }
 
 void Settings::setDistortionModel(const PageId& pageId, const dewarping::DistortionModel& model) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -175,6 +196,8 @@ void Settings::setDistortionModel(const PageId& pageId, const dewarping::Distort
 }
 
 void Settings::setDepthPerception(const PageId& pageId, const DepthPerception& depthPerception) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -188,6 +211,8 @@ void Settings::setDepthPerception(const PageId& pageId, const DepthPerception& d
 }
 
 void Settings::setDespeckleLevel(const PageId& pageId, double level) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));
@@ -212,11 +237,15 @@ std::unique_ptr<OutputParams> Settings::getOutputParams(const PageId& pageId) co
 }
 
 void Settings::removeOutputParams(const PageId& pageId) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   m_perPageOutputParams.erase(pageId);
 }
 
 void Settings::setOutputParams(const PageId& pageId, const OutputParams& params) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPageOutputParams, pageId, params);
 }
@@ -244,11 +273,15 @@ ZoneSet Settings::fillZonesForPage(const PageId& pageId) const {
 }
 
 void Settings::setPictureZones(const PageId& pageId, const ZoneSet& zones) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPagePictureZones, pageId, zones);
 }
 
 void Settings::setFillZones(const PageId& pageId, const ZoneSet& zones) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPageFillZones, pageId, zones);
 }
@@ -297,6 +330,8 @@ OutputProcessingParams Settings::getOutputProcessingParams(const PageId& pageId)
 }
 
 void Settings::setOutputProcessingParams(const PageId& pageId, const OutputProcessingParams& outputProcessingParams) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_perPageOutputProcessingParams, pageId, outputProcessingParams);
 }
@@ -307,6 +342,8 @@ bool Settings::isParamsNull(const PageId& pageId) const {
 }
 
 void Settings::setBlackOnWhite(const PageId& pageId, const bool blackOnWhite) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QMutexLocker locker(&m_mutex);
 
   const auto it(m_perPageParams.find(pageId));

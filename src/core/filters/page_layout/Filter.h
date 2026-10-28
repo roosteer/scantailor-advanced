@@ -20,6 +20,7 @@ class ProjectPages;
 class ImageTransformation;
 class QString;
 class QRectF;
+class DocumentChangeNotifier;
 
 namespace output {
 class Task;
@@ -37,7 +38,9 @@ class Filter : public AbstractFilter {
 
   Q_DECLARE_TR_FUNCTIONS(page_layout::Filter)
  public:
-  Filter(std::shared_ptr<ProjectPages> pageSequence, const PageSelectionAccessor& pageSelectionAccessor);
+  Filter(std::shared_ptr<ProjectPages> pageSequence,
+         const PageSelectionAccessor& pageSelectionAccessor,
+         std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   ~Filter() override;
 

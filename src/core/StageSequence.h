@@ -20,6 +20,7 @@ class PageId;
 class ProjectPages;
 class PageSelectionAccessor;
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 class StageSequence {
   DECLARE_NON_COPYABLE(StageSequence)
@@ -27,7 +28,9 @@ class StageSequence {
  public:
   using FilterPtr = std::shared_ptr<AbstractFilter>;
 
-  StageSequence(const std::shared_ptr<ProjectPages>& pages, const PageSelectionAccessor& pageSelectionAccessor);
+  StageSequence(const std::shared_ptr<ProjectPages>& pages,
+                const PageSelectionAccessor& pageSelectionAccessor,
+                std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~StageSequence() = default;
 

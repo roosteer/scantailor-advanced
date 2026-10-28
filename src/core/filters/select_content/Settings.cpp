@@ -7,6 +7,7 @@
 
 #include "../../Utils.h"
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "RelinkablePath.h"
 
 using namespace core;
@@ -16,7 +17,8 @@ namespace {
 constexpr double kUnboundedPageDetectionBoxMm = 100000.0;
 }  // namespace
 
-Settings::Settings() : m_pageDetectionBox(0.0, 0.0), m_pageDetectionTolerance(0.1) {
+Settings::Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)), m_pageDetectionBox(0.0, 0.0), m_pageDetectionTolerance(0.1) {
   m_deviationProvider.setComputeValueByKey([this](const PageId& pageId) -> double {
     auto it(m_pageParams.find(pageId));
     if (it != m_pageParams.end()) {
@@ -32,12 +34,16 @@ Settings::Settings() : m_pageDetectionBox(0.0, 0.0), m_pageDetectionTolerance(0.
 Settings::~Settings() = default;
 
 void Settings::clear() {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_pageParams.clear();
   m_deviationProvider.clear();
 }
 
 void Settings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   PageParams newParams;
 
@@ -57,12 +63,16 @@ void Settings::performRelinking(const AbstractRelinker& relinker) {
 }
 
 void Settings::setPageParams(const PageId& pageId, const Params& params) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   Utils::mapSetValue(m_pageParams, pageId, params);
   m_deviationProvider.addOrUpdate(pageId);
 }
 
 void Settings::clearPageParams(const PageId& pageId) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   QMutexLocker locker(&m_mutex);
   m_pageParams.erase(pageId);
   m_deviationProvider.remove(pageId);
@@ -88,6 +98,8 @@ void Settings::copyBoxes(const std::set<PageId>& pages,
                          const PageId& sourcePage,
                          const Params& source,
                          const BoxSelection selection) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const bool applyContentBox = (selection == BoxSelection::Content) || (selection == BoxSelection::Both);
   const bool applyPageBox = (selection == BoxSelection::Page) || (selection == BoxSelection::Both);
 
@@ -132,6 +144,8 @@ void Settings::copyBoxes(const std::set<PageId>& pages,
 }
 
 void Settings::setManualBox(const std::set<PageId>& pages, const QRectF& rect) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   const QSizeF sizeMm(rect.width(), rect.height());
   const Params params(rect, sizeMm, rect, Dependencies(), MODE_MANUAL, MODE_MANUAL, false);
 
@@ -148,18 +162,26 @@ void Settings::useUnboundedPageDetection() {
 }
 
 QSizeF Settings::pageDetectionBox() const {
+  QMutexLocker locker(&m_mutex);
   return m_pageDetectionBox;
 }
 
 void Settings::setPageDetectionBox(QSizeF size) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  QMutexLocker locker(&m_mutex);
   m_pageDetectionBox = size;
 }
 
 double Settings::pageDetectionTolerance() const {
+  QMutexLocker locker(&m_mutex);
   return m_pageDetectionTolerance;
 }
 
 void Settings::setPageDetectionTolerance(double tolerance) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  QMutexLocker locker(&m_mutex);
   m_pageDetectionTolerance = tolerance;
 }
 

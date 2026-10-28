@@ -28,6 +28,7 @@
 #include "DebugImageView.h"
 #include "DebugImages.h"
 #include "DefaultParamsDialog.h"
+#include "DocumentChangeNotifier.h"
 #include "ErrorWidget.h"
 #include "FilterOptionsWidget.h"
 #include "FixDpiDialog.h"
@@ -345,6 +346,14 @@ MainWindow::MainWindow()
 }
 
 MainWindow::~MainWindow() {
+  // Stop observing first: a worker may still be writing settings, and its notification must
+  // not arrive once the window is being taken apart. clearHandler() waits for a call already
+  // running, and QObject destruction drops whatever was already queued for the slot.
+  m_autoSaveTimer.stop();
+  if (m_document) {
+    m_document->changeNotifier()->clearHandler();
+  }
+
   m_interactiveQueue->cancelAndClear();
   if (m_batchQueue) {
     m_batchQueue->cancelAndClear();
@@ -371,6 +380,14 @@ std::vector<PageRange> MainWindow::selectedRanges() const {
 void MainWindow::switchToProject(std::shared_ptr<ProjectDocument> document, const QString& projectFilePath) {
   assert(document);
 
+  // Stop observing the outgoing document before it loses its last owner, and forget any
+  // notification that was still queued: it belonged to another document's state.
+  if (m_document) {
+    m_document->changeNotifier()->clearHandler();
+  }
+  m_autoSaveTimer.stop();
+  m_documentChangePending.store(false);
+
   stopBatchProcessing(CLEAR_MAIN_AREA);
   m_interactiveQueue->cancelAndClear();
 
@@ -379,8 +396,24 @@ void MainWindow::switchToProject(std::shared_ptr<ProjectDocument> document, cons
     Utils::maybeCreateCacheDir(outDir);
   }
 
+  // What the file holds is the clean state. Everything from here on, including the default
+  // settings and the computed values the stages write below, is a change the user has to
+  // save; an unnamed document gets no checkpoint and so never autosaves itself.
+  document->markSavedState(projectFilePath);
+
   m_document = std::move(document);
   m_projectFile = projectFilePath;
+
+  // One handler per document: it only queues work, so it is safe for the worker threads that
+  // write computed settings while the editor is idle.
+  m_document->changeNotifier()->setHandler([this] {
+    if (m_documentChangePending.exchange(true)) {
+      return;  // An event is already queued and will see this change too.
+    }
+    if (!QMetaObject::invokeMethod(this, "projectDocumentChanged", Qt::QueuedConnection)) {
+      m_documentChangePending.store(false);
+    }
+  });
 
   // Connect the filter list model to the view and select
   // the first item.
@@ -556,35 +589,6 @@ MainWindow::SavePromptResult MainWindow::promptProjectSave() {
       return DONT_SAVE;
     default:
       return CANCEL;
-  }
-}
-
-bool MainWindow::compareFiles(const QString& fpath1, const QString& fpath2) {
-  QFile file1(fpath1);
-  QFile file2(fpath2);
-
-  if (!file1.open(QIODevice::ReadOnly)) {
-    return false;
-  }
-  if (!file2.open(QIODevice::ReadOnly)) {
-    return false;
-  }
-
-  if (!file1.isSequential() && !file2.isSequential()) {
-    if (file1.size() != file2.size()) {
-      return false;
-    }
-  }
-
-  const int chunkSize = 4096;
-  while (true) {
-    const QByteArray chunk1(file1.read(chunkSize));
-    const QByteArray chunk2(file2.read(chunkSize));
-    if (chunk1.size() != chunk2.size()) {
-      return false;
-    } else if (chunk1.size() == 0) {
-      return true;
-    }
   }
 }
 
@@ -979,15 +983,35 @@ void MainWindow::currentPageChanged(const PageInfo& pageInfo,
   if ((flags & ThumbnailSequence::SELECTION_CLEARED) && selectionModeBtn->isChecked()) {
     selectionModeBtn->setChecked(false);
   }
-
-  updateAutoSaveTimer();
 }
 
-void MainWindow::autoSaveProject() {
-  if (m_projectFile.isEmpty()) {
+void MainWindow::projectDocumentChanged() {
+  m_documentChangePending.store(false);
+
+  // A change nobody can save: no destination, no document, or the feature turned off.
+  if (m_projectFile.isEmpty() || !m_document || !m_document->isLoaded()) {
     return;
   }
   if (!ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
+    return;
+  }
+
+  // The first change after a save decides the deadline; later ones must not postpone it.
+  if (!m_autoSaveTimer.isActive()) {
+    m_autoSaveTimer.start(60000);
+  }
+}
+
+void MainWindow::autoSaveProject() {
+  if (m_projectFile.isEmpty() || !m_document) {
+    return;
+  }
+  if (!ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
+    return;
+  }
+
+  // The user may have undone the change, or a manual save may already have written it.
+  if (!m_document->hasUnsavedChanges(m_projectFile)) {
     return;
   }
 
@@ -1689,8 +1713,12 @@ bool MainWindow::closeProjectInteractive() {
   if (m_projectFile.isEmpty()) {
     switch (promptProjectSave()) {
       case SAVE:
-        saveProjectTriggered();
-        // fall through
+        // An unnamed document needs a destination, and cancelling the file dialog must not
+        // throw the document away.
+        if (!project_save::saveAs(this, *m_document, m_projectFile)) {
+          return false;
+        }
+        break;
       case DONT_SAVE:
         break;
       case CANCEL:
@@ -1700,42 +1728,19 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  const QFileInfo projectFile(m_projectFile);
-  const QFileInfo backupFile(projectFile.absoluteDir(), QString::fromLatin1("Backup.") + projectFile.fileName());
-  const QString backupFilePath(backupFile.absoluteFilePath());
-
-  if (!m_document->save(backupFilePath)) {
-    // Backup file could not be written???
-    QFile::remove(backupFilePath);
-    switch (promptProjectSave()) {
-      case SAVE:
-        saveProjectTriggered();
-        // fall through
-      case DONT_SAVE:
-        break;
-      case CANCEL:
-        return false;
-    }
-    closeProjectWithoutSaving();
-    return true;
-  }
-
-  if (compareFiles(m_projectFile, backupFilePath)) {
-    // The project hasn't really changed.
-    QFile::remove(backupFilePath);
+  // Nothing to ask about when the current model is what the file already holds.
+  if (!m_document->hasUnsavedChanges(m_projectFile)) {
     closeProjectWithoutSaving();
     return true;
   }
 
   switch (promptProjectSave()) {
     case SAVE:
-      if (!Utils::overwritingRename(backupFilePath, m_projectFile)) {
-        QMessageBox::warning(this, tr("Error"), tr("Error saving the project file!"));
+      if (!project_save::saveWithFeedback(this, *m_document, m_projectFile)) {
         return false;
       }
-      // fall through
+      break;
     case DONT_SAVE:
-      QFile::remove(backupFilePath);
       break;
     case CANCEL:
       return false;
@@ -2082,12 +2087,6 @@ void MainWindow::updateThumbnailViewMode() {
                                                                                      : ThumbnailSequence::MULTI_COLUMN;
   if (m_thumbSequence->getViewMode() != viewMode) {
     m_thumbSequence->setViewMode(viewMode);
-  }
-}
-
-void MainWindow::updateAutoSaveTimer() {
-  if (m_autoSaveTimer.remainingTime() <= 0) {
-    m_autoSaveTimer.start(60000);
   }
 }
 

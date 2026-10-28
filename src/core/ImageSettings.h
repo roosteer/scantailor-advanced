@@ -15,6 +15,7 @@
 #include "PageId.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 class ImageSettings {
   DECLARE_NON_COPYABLE(ImageSettings)
@@ -42,7 +43,7 @@ class ImageSettings {
     bool m_blackOnWhite;
   };
 
-  ImageSettings() = default;
+  explicit ImageSettings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~ImageSettings() = default;
 
@@ -57,6 +58,7 @@ class ImageSettings {
  private:
   using PerPageParams = std::unordered_map<PageId, PageParams>;
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   mutable QMutex m_mutex;
   PerPageParams m_perPageParams;
 };

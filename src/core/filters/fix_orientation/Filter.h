@@ -18,6 +18,7 @@ class QString;
 class QDomDocument;
 class QDomElement;
 class ImageSettings;
+class DocumentChangeNotifier;
 
 namespace page_split {
 class Task;
@@ -38,7 +39,8 @@ class Filter : public AbstractFilter {
   DECLARE_NON_COPYABLE(Filter)
 
  public:
-  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor);
+  explicit Filter(const PageSelectionAccessor& pageSelectionAccessor,
+                  std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   ~Filter() override;
 

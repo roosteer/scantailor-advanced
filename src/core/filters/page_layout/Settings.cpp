@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "AbstractRelinker.h"
+#include "DocumentChangeNotifier.h"
 #include "Guide.h"
 #include "PageId.h"
 #include "PageSequence.h"
@@ -161,7 +162,9 @@ class Settings::Impl {
 
   const DeviationProvider<PageId>& deviationProvider() const;
 
-  std::vector<Guide>& guides();
+  std::vector<Guide> guides() const;
+
+  void setGuides(std::vector<Guide> guides);
 
   bool isShowingMiddleRectEnabled() const;
 
@@ -213,19 +216,26 @@ class Settings::Impl {
 
 /*=============================== Settings ==================================*/
 
-Settings::Settings() : m_impl(std::make_unique<Impl>()) {}
+Settings::Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_changeNotifier(std::move(changeNotifier)), m_impl(std::make_unique<Impl>()) {}
 
 Settings::~Settings() = default;
 
 void Settings::clear() {
-  return m_impl->clear();
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  m_impl->clear();
 }
 
 void Settings::performRelinking(const AbstractRelinker& relinker) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   m_impl->performRelinking(relinker);
 }
 
 void Settings::removePagesMissingFrom(const PageSequence& pages) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   m_impl->removePagesMissingFrom(pages);
 }
 
@@ -238,7 +248,9 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
 }
 
 void Settings::setPageParams(const PageId& pageId, const Params& params) {
-  return m_impl->setPageParams(pageId, params);
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  m_impl->setPageParams(pageId, params);
 }
 
 Params Settings::updateContentSizeAndGetParams(const PageId& pageId,
@@ -247,6 +259,8 @@ Params Settings::updateContentSizeAndGetParams(const PageId& pageId,
                                                const QSizeF& contentSizeMm,
                                                QSizeF* aggHardSizeBefore,
                                                QSizeF* aggHardSizeAfter) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, aggHardSizeBefore,
                                                aggHardSizeAfter);
 }
@@ -256,6 +270,8 @@ Margins Settings::getHardMarginsMM(const PageId& pageId) const {
 }
 
 void Settings::setHardMarginsMM(const PageId& pageId, const Margins& marginsMm) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   m_impl->setHardMarginsMM(pageId, marginsMm);
 }
 
@@ -264,15 +280,21 @@ Alignment Settings::getPageAlignment(const PageId& pageId) const {
 }
 
 Settings::AggregateSizeChanged Settings::setPageAlignment(const PageId& pageId, const Alignment& alignment) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   return m_impl->setPageAlignment(pageId, alignment);
 }
 
 Settings::AggregateSizeChanged Settings::setContentSizeMM(const PageId& pageId, const QSizeF& contentSizeMm) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   return m_impl->setContentSizeMM(pageId, contentSizeMm);
 }
 
 void Settings::invalidateContentSize(const PageId& pageId) {
-  return m_impl->invalidateContentSize(pageId);
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  m_impl->invalidateContentSize(pageId);
 }
 
 QSizeF Settings::getAggregateHardSizeMM() const {
@@ -298,7 +320,9 @@ bool Settings::isPageAutoMarginsEnabled(const PageId& pageId) {
 }
 
 void Settings::setPageAutoMarginsEnabled(const PageId& pageId, const bool state) {
-  return m_impl->setPageAutoMarginsEnabled(pageId, state);
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  m_impl->setPageAutoMarginsEnabled(pageId, state);
 }
 
 bool Settings::isParamsNull(const PageId& pageId) const {
@@ -309,8 +333,14 @@ const DeviationProvider<PageId>& Settings::deviationProvider() const {
   return m_impl->deviationProvider();
 }
 
-std::vector<Guide>& Settings::guides() {
+std::vector<Guide> Settings::guides() const {
   return m_impl->guides();
+}
+
+void Settings::setGuides(std::vector<Guide> guides) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
+  m_impl->setGuides(std::move(guides));
 }
 
 bool Settings::isShowingMiddleRectEnabled() const {
@@ -318,6 +348,8 @@ bool Settings::isShowingMiddleRectEnabled() const {
 }
 
 void Settings::enableShowingMiddleRect(const bool state) {
+  DocumentChangeGuard guard(m_changeNotifier.get());
+
   m_impl->enableShowingMiddleRect(state);
 }
 
@@ -772,15 +804,23 @@ const DeviationProvider<PageId>& Settings::Impl::deviationProvider() const {
   return m_deviationProvider;
 }
 
-std::vector<Guide>& Settings::Impl::guides() {
+std::vector<Guide> Settings::Impl::guides() const {
+  const QMutexLocker locker(&m_mutex);
   return m_guides;
 }
 
+void Settings::Impl::setGuides(std::vector<Guide> guides) {
+  const QMutexLocker locker(&m_mutex);
+  m_guides.swap(guides);
+}
+
 bool Settings::Impl::isShowingMiddleRectEnabled() const {
+  const QMutexLocker locker(&m_mutex);
   return m_showMiddleRect;
 }
 
 void Settings::Impl::enableShowingMiddleRect(const bool state) {
+  const QMutexLocker locker(&m_mutex);
   m_showMiddleRect = state;
 }
 }  // namespace page_layout

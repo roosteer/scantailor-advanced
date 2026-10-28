@@ -18,6 +18,16 @@ class TestProjectDocumentUi : public QObject {
   void saveButtonFollowsTheProjectFile();
 
   void savesTheDocumentAfterTheEditorIsGone();
+
+  void autosaveWritesOnlyWhatTheFileDoesNotHave();
+
+  void laterChangesDoNotPostponeTheAutosaveDeadline();
+
+  void cleanCloseAsksNothingAndLeavesNoBackup();
+
+  void dirtyCloseKeepsTheDocumentUnlessTheSaveSucceeds();
+
+  void switchingProjectsKeepsThePendingChangeOutOfTheNewFile();
 };
 
 #endif  // TST_PROJECT_DOCUMENT_UI_H

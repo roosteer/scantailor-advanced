@@ -6,13 +6,14 @@
 #include "ProjectPages.h"
 
 StageSequence::StageSequence(const std::shared_ptr<ProjectPages>& pages,
-                             const PageSelectionAccessor& pageSelectionAccessor)
-    : m_fixOrientationFilter(std::make_shared<fix_orientation::Filter>(pageSelectionAccessor)),
-      m_pageSplitFilter(std::make_shared<page_split::Filter>(pages, pageSelectionAccessor)),
-      m_deskewFilter(std::make_shared<deskew::Filter>(pageSelectionAccessor)),
-      m_selectContentFilter(std::make_shared<select_content::Filter>(pageSelectionAccessor)),
-      m_pageLayoutFilter(std::make_shared<page_layout::Filter>(pages, pageSelectionAccessor)),
-      m_outputFilter(std::make_shared<output::Filter>(pageSelectionAccessor)) {
+                             const PageSelectionAccessor& pageSelectionAccessor,
+                             std::shared_ptr<DocumentChangeNotifier> changeNotifier)
+    : m_fixOrientationFilter(std::make_shared<fix_orientation::Filter>(pageSelectionAccessor, changeNotifier)),
+      m_pageSplitFilter(std::make_shared<page_split::Filter>(pages, pageSelectionAccessor, changeNotifier)),
+      m_deskewFilter(std::make_shared<deskew::Filter>(pageSelectionAccessor, changeNotifier)),
+      m_selectContentFilter(std::make_shared<select_content::Filter>(pageSelectionAccessor, changeNotifier)),
+      m_pageLayoutFilter(std::make_shared<page_layout::Filter>(pages, pageSelectionAccessor, changeNotifier)),
+      m_outputFilter(std::make_shared<output::Filter>(pageSelectionAccessor, std::move(changeNotifier))) {
   m_fixOrientationFilterIdx = static_cast<int>(m_filters.size());
   m_filters.emplace_back(m_fixOrientationFilter);
 

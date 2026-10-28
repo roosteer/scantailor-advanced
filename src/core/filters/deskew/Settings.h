@@ -17,13 +17,14 @@
 #include "Params.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 namespace deskew {
 class Settings {
   DECLARE_NON_COPYABLE(Settings)
 
  public:
-  Settings();
+  explicit Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~Settings();
 
@@ -66,6 +67,7 @@ class Settings {
  private:
   using PerPageParams = std::unordered_map<PageId, Params>;
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   mutable QMutex m_mutex;
   PerPageParams m_perPageParams;
   DeviationProvider<PageId> m_deviationProvider;

@@ -16,13 +16,14 @@
 #include "Params.h"
 
 class AbstractRelinker;
+class DocumentChangeNotifier;
 
 namespace select_content {
 class Settings {
   DECLARE_NON_COPYABLE(Settings)
 
  public:
-  Settings();
+  explicit Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~Settings();
 
@@ -76,6 +77,7 @@ class Settings {
  private:
   using PageParams = std::unordered_map<PageId, Params>;
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   mutable QMutex m_mutex;
   PageParams m_pageParams;
   QSizeF m_pageDetectionBox;

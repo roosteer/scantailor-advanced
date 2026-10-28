@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <vector>
 
 #include "Alignment.h"
 #include "Margins.h"
@@ -17,6 +18,7 @@
 
 class PageSequence;
 class AbstractRelinker;
+class DocumentChangeNotifier;
 class QSizeF;
 class QRectF;
 
@@ -30,7 +32,7 @@ class Settings {
  public:
   enum AggregateSizeChanged { AGGREGATE_SIZE_UNCHANGED, AGGREGATE_SIZE_CHANGED };
 
-  Settings();
+  explicit Settings(std::shared_ptr<DocumentChangeNotifier> changeNotifier = nullptr);
 
   virtual ~Settings();
 
@@ -157,7 +159,11 @@ class Settings {
 
   const DeviationProvider<PageId>& deviationProvider() const;
 
-  std::vector<Guide>& guides();
+  /** A copy, so callers can read the guides without holding the settings lock. */
+  std::vector<Guide> guides() const;
+
+  /** Replaces all guides at once; the caller builds the vector it wants. */
+  void setGuides(std::vector<Guide> guides);
 
   bool isShowingMiddleRectEnabled() const;
 
@@ -197,6 +203,7 @@ class Settings {
 
   class ModifyContentSize;
 
+  std::shared_ptr<DocumentChangeNotifier> m_changeNotifier;
   std::unique_ptr<Impl> m_impl;
 };
 }  // namespace page_layout
