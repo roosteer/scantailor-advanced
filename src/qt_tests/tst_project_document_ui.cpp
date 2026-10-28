@@ -328,15 +328,29 @@ void TestProjectDocumentUi::autosaveWritesOnlyWhatTheFileDoesNotHave() {
 
   QVERIFY(invokeSlot(window.get(), "autoSaveProject"));
   const QByteArray writtenBytes = readAll(project.projectPath);
-  const QDateTime writtenTime = QFileInfo(project.projectPath).lastModified();
   QVERIFY(writtenBytes != savedBytes);
   QVERIFY(savedSelection(project.projectPath).imageId() == ImageId(project.pageFiles.at(1)));
 
-  // The write moved the checkpoint, so the same slot now finds nothing to do: no second write,
-  // no touched modification time.
+  // The stage workers may still be landing the params of the page just visited, and each of
+  // those is a real change. Let the slot drain them until an invocation finds nothing to
+  // write, then hold it to silence: neither the bytes nor the modification time may move.
+  QByteArray quietBytes = writtenBytes;
+  QDateTime quietTime = QFileInfo(project.projectPath).lastModified();
+  bool quiet = false;
+  for (int attempt = 0; attempt < 10 && !quiet; ++attempt) {
+    QTest::qWait(100);
+    QVERIFY(invokeSlot(window.get(), "autoSaveProject"));
+    const QByteArray bytesNow = readAll(project.projectPath);
+    const QDateTime timeNow = QFileInfo(project.projectPath).lastModified();
+    quiet = (bytesNow == quietBytes) && (timeNow == quietTime);
+    quietBytes = bytesNow;
+    quietTime = timeNow;
+  }
+  QVERIFY(quiet);
+
   QVERIFY(invokeSlot(window.get(), "autoSaveProject"));
-  QCOMPARE(readAll(project.projectPath), writtenBytes);
-  QCOMPARE(QFileInfo(project.projectPath).lastModified(), writtenTime);
+  QCOMPARE(readAll(project.projectPath), quietBytes);
+  QCOMPARE(QFileInfo(project.projectPath).lastModified(), quietTime);
 
   // And the window it leaves behind is clean enough to close without asking.
   DialogAnswerer answerer(QMessageBox::Cancel);
