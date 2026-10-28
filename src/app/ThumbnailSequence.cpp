@@ -238,6 +238,7 @@ class ThumbnailSequence::Impl {
   std::shared_ptr<ThumbnailFactory> m_factory;
   std::shared_ptr<const PageOrderProvider> m_orderProvider;
   GraphicsScene m_graphicsScene;
+  QGraphicsView* m_view = nullptr;
   QRectF m_sceneRect;
   bool m_selectionMode;
 
@@ -476,6 +477,13 @@ ThumbnailSequence::Impl::Impl(ThumbnailSequence& owner, const QSizeF& maxLogical
 
 ThumbnailSequence::Impl::~Impl() {
   m_rubberBandFilter.reset();
+
+  // The scene owns the thumbnails, so losing it moves the view's scrollbars, and that comes
+  // straight back here through selectionLeaderSceneRect(). Let the view go of the scene while
+  // the items can still answer, rather than in the middle of the scene's own destruction.
+  if (m_view) {
+    m_view->setScene(nullptr);
+  }
 }
 
 void ThumbnailSequence::Impl::setThumbnailFactory(std::shared_ptr<ThumbnailFactory> factory) {
@@ -484,6 +492,7 @@ void ThumbnailSequence::Impl::setThumbnailFactory(std::shared_ptr<ThumbnailFacto
 
 void ThumbnailSequence::Impl::attachView(QGraphicsView* const view) {
   m_rubberBandFilter.reset();
+  m_view = view;
   view->setScene(&m_graphicsScene);
   m_rubberBandFilter = std::make_unique<ViewportRubberBandFilter>(this, view);
 }
